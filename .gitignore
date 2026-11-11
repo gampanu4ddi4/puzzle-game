@@ -4,6 +4,9 @@
 export_presets.cfg
 /build/
 
+# Baked GI (regenerated automatically on first run)
+*_voxelgi.res
+
 # Look-dev screenshots
 /shots/
 

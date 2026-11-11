@@ -31,11 +31,14 @@ uniform float slope_start_x = 0.0;
 uniform float joint_spacing = 0.0;           // 바닥 줄눈 간격(m). 0이면 없음
 uniform float joint_width = 0.012;
 
+// 층 원점. 같은 층을 여러 벌 놓아도 무늬가 똑같이 나오도록 이 점을 기준으로 텍스처를 입힌다.
+uniform vec3 world_offset = vec3(0.0);
+
 varying vec3 w_pos;
 varying vec3 w_nrm;
 
 void vertex() {
-	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz - world_offset;
 	w_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 

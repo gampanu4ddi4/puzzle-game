@@ -14,9 +14,19 @@
 | [docs/ART_SOUND.md](docs/ART_SOUND.md) | 아트 · 사운드 가이드 |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | 제작 계획 (2인 개발) |
 
+## 퍼즐 1-1 "끝없는 경사로"
+
+Godot 4.7로 프로젝트를 열고 실행(F5)하면 1-1이 시작된다 (`levels/ch1_parking/p1_1.tscn`).
+B2에서 시작한다. 서쪽 경사로를 내려가면 다시 B2가 나오고, 동쪽 경사로를 거슬러 올라가면 B3에 도착한다.
+
+- F2: 디버그 표시 (반복 횟수, 힌트 단계, 위치, FPS)
+- 자동 테스트: `godot --path . res://levels/ch1_parking/p1_1.tscn -- --test=down|up|tour|hints --out=<폴더>`
+  - `down`, `up`: 자동으로 걸어 관문을 지나게 하고, 순간이동 직전·직후 화면의 차이를 출력한다
+  - `--hint-scale=100`: 힌트 시간을 100배 빠르게
+
 ## 룩 테스트: 지하 주차장 B2 한 층
 
-실사 느낌을 확인하기 위한 시험 장면. Godot 4.7로 프로젝트를 열고 실행(F5)하면 된다.
+실사 느낌을 확인하기 위한 시험 장면 (`levels/lookdev/parking_b2.tscn`). 편집기에서 이 장면을 열고 F6으로 실행한다.
 
 - 조작: WASD 걷기, Shift 천천히, Ctrl 웅크리기, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷
 - 장면: `levels/lookdev/parking_b2.tscn` (조립 스크립트 `parking_builder.gd`)
@@ -33,5 +43,5 @@ blender --background --factory-startup --python tools/blender/parking_kit.py -- 
 ### 스크린샷 자동 촬영
 
 ```bash
-godot --path . --windowed --resolution 1600x900 -- --shots=<저장할 폴더>
+godot --path . --windowed --resolution 1600x900 res://levels/lookdev/parking_b2.tscn -- --shots=<저장할 폴더>
 ```

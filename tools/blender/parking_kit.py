@@ -176,6 +176,9 @@ M_CUP = material("cup_paper", "EDE9E0", 0.75)
 M_SLEEVE = material("cup_sleeve", "8A6440", 0.85)
 M_LID = material("cup_lid", "232323", 0.4)
 M_SIGN = material("sign_green", "1F6B47", 0.5, 0.0, "1F6B47", 0.6)
+M_SHUTTER = material("shutter_metal", "A7ABA6", 0.45, 0.6)
+M_SHUTTER_DARK = material("shutter_dark", "4E524F", 0.5, 0.6)
+M_HAZARD = material("hazard_yellow", "D9B12E", 0.6)
 
 
 # ---------------------------------------------------------------- 부품
@@ -244,7 +247,8 @@ def pipe_sprinkler():
 
 def ramp_tunnel():
     """위로 올라가는 경사로 터널. 길이 24 m(X), 안쪽 폭 6 m, 높이 차 3 m.
-    원점은 시작 지점 바닥 가운데. 끝은 벽으로 막혀 있다."""
+    원점은 아래쪽 끝 바닥 가운데. 양 끝이 열려 있어서 위아래 층을 잇는다
+    (한 층의 동쪽 터널 = 위층의 서쪽 입구). 막아야 하면 Godot에서 막는다."""
     slope = 3.0 / 24.0
     floor_ = cube("floor", (24.0, 6.6, 0.3), (12.0, 0, -0.15), M_RAMP)
     ceil = cube("ceil", (24.0, 6.6, 0.3), (12.0, 0, 2.85), M_CEIL)
@@ -252,15 +256,31 @@ def ramp_tunnel():
     wr = cube("wall_r", (24.0, 0.3, 2.7), (12.0, -3.15, 1.35), M_PAINT)
     for o in (floor_, ceil, wl, wr):
         shear_z_by_x(o, slope)
-    end = cube("end", (0.3, 6.6, 3.0), (24.15, 0, 3.0 + 1.35), M_PAINT)
     # 바닥 가장자리 연석
     curbs = []
     for sy in (-1, 1):
         c = cube("curb", (24.0, 0.25, 0.15), (12.0, sy * 2.875, 0.075), M_WHEELSTOP)
         shear_z_by_x(c, slope)
         curbs.append(c)
-    join([floor_, ceil, wl, wr, end] + curbs, "ramp_tunnel")
+    join([floor_, ceil, wl, wr] + curbs, "ramp_tunnel")
     export("ramp_tunnel")
+
+
+def fire_shutter():
+    """방화셔터: 폭 6 m, 높이 2.7 m. 원점은 바닥 가운데. 판 방향은 Godot Z, 두께는 X."""
+    parts = []
+    slat_h = 0.075
+    n = int(2.62 / slat_h)
+    for i in range(n):
+        s = cube("slat", (0.05, 6.0, slat_h - 0.006), (0, 0, 0.04 + slat_h * (i + 0.5)), M_SHUTTER)
+        bevel(s, 0.012, 2)
+        parts.append(s)
+    bottom = cube("bottom_bar", (0.08, 6.0, 0.05), (0, 0, 0.025), M_SHUTTER_DARK)
+    bevel(bottom, 0.01, 2)
+    guides = [cube("guide", (0.12, 0.1, 2.7), (0, sy * 3.0, 1.35), M_SHUTTER_DARK) for sy in (-1, 1)]
+    stripe = cube("stripe", (0.056, 5.98, 0.12), (0, 0, 1.2), M_HAZARD)
+    join(parts + [bottom, stripe] + guides, "fire_shutter")
+    export("fire_shutter")
 
 
 def arrow():
@@ -348,6 +368,7 @@ def hanging_sign():
 
 clear()
 for build in (pillar, beam, wheel_stop, fixture, pipe_gray, pipe_sprinkler, ramp_tunnel,
-              arrow, fire_cabinet, steel_door, exit_sign, traffic_cone, coffee_cup, hanging_sign):
+              arrow, fire_cabinet, steel_door, exit_sign, traffic_cone, coffee_cup, hanging_sign,
+              fire_shutter):
     build()
 print("KIT DONE")

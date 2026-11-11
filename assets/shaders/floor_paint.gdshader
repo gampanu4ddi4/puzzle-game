@@ -6,10 +6,12 @@ uniform vec3 paint_color : source_color = vec3(0.9, 0.9, 0.87);
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float wear = 0.35;      // 0이면 새 페인트, 1이면 거의 다 벗겨짐
 
+uniform vec3 world_offset = vec3(0.0);   // 층 원점 (concrete_triplanar와 같은 뜻)
+
 varying vec3 w_pos;
 
 void vertex() {
-	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	w_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz - world_offset;
 }
 
 void fragment() {
