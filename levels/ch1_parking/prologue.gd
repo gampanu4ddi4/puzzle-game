@@ -526,7 +526,12 @@ func _on_bar_hit(body: Node) -> void:
 	if not body is CharacterBody3D or _bar_swinging:
 		return
 	_bar_swinging = true
-	var dir := -1.0 if body.global_position.z > _bar_pivot.global_position.z else 1.0
+	# 부딪힌 사람이 움직이던 쪽으로 밀려난다 (멈춰 있었다면 사람 반대쪽으로).
+	# 바는 매단 점 아래에 있으므로 X축으로 +θ 돌면 바가 -Z로 움직인다 → 밀 방향과 부호가 반대다.
+	var push := (body as CharacterBody3D).velocity.z
+	if absf(push) < 0.1:
+		push = _bar_pivot.global_position.z - body.global_position.z
+	var dir := -signf(push) if push != 0.0 else 1.0
 	var tw := create_tween()
 	var amp := 0.28
 	for i in 6:

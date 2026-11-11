@@ -757,12 +757,22 @@ func _test_prologue(out: String) -> void:
 	player.call("set_look", 0.0)
 	# 높이제한 바 밑에서 점프: 머리가 닿으면 바가 흔들린다
 	await _walk_to([Vector3(m.x, gy, m.z - 2.0)])
-	player.global_position = Vector3(m.x, gy + 0.05, m.z - 0.75)
+	# 도로 쪽에서 입구(+Z)로 걸어가며 점프해 앞에서 박는다: 바는 입구 안쪽(+Z)으로 밀려나야 한다
+	player.global_position = Vector3(m.x, gy + 0.05, m.z - 1.3)
 	player.rotation.y = PI
 	await get_tree().create_timer(0.3).timeout
+	player.set("auto_move", Vector3(0, 0, -1))
 	player.call("request_jump")
-	await get_tree().create_timer(0.35).timeout
-	print("height bar swinging after jump: ", prologue.get("_bar_swinging"), "  max head y ~ ", player.global_position.y + 1.75)
+	var pivot: Node3D = prologue.get("_bar_pivot")
+	var max_push := 0.0
+	var t_end := Time.get_ticks_msec() + 600
+	while Time.get_ticks_msec() < t_end:
+		await get_tree().process_frame
+		var bar_z := pivot.to_global(Vector3(0, -0.48, 0)).z - pivot.global_position.z
+		if absf(bar_z) > absf(max_push):
+			max_push = bar_z
+	player.set("auto_move", Vector3.ZERO)
+	print("height bar hit from front: swinging=%s  first push z=%.3f (입구 쪽이면 양수)" % [prologue.get("_bar_swinging"), max_push])
 	player.global_position = Vector3(m.x, gy + 0.05, m.z - 3.0)
 	await get_tree().create_timer(0.8).timeout
 	player.call("set_look", 0.15)
