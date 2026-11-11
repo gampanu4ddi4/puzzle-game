@@ -301,21 +301,27 @@ func _build_ground() -> void:
 	var span := 90.0
 	# 차도 (건물 앞 진입로까지 이어진다. 외벽 두께만큼의 틈이 생기지 않게 입구 안쪽까지)
 	_box(self, Vector3(span, 0.3, -FAR_CURB + 0.6), _w(0, -0.15, FAR_CURB / 2.0 + 0.3), asphalt)
-	# 이쪽 인도: 진입로(폭 7 m)를 비우고 양쪽에
-	var near_w := -NEAR_CURB - 0.6
-	var left_w := span / 2.0 - 3.5
-	_box(self, Vector3(left_w, WALK, near_w), _w(-3.5 - left_w / 2.0, WALK / 2.0, -0.6 - near_w / 2.0), pav)
-	_box(self, Vector3(left_w, WALK, near_w), _w(3.5 + left_w / 2.0, WALK / 2.0, -0.6 - near_w / 2.0), pav)
-	# 건너편 인도
-	var far_w := FAR_CURB - FAR_EDGE
-	_box(self, Vector3(span, WALK, far_w), _w(0, WALK / 2.0, FAR_CURB - far_w / 2.0), pav)
-	# 연석 (화강석 경계석)
-	_box(self, Vector3(left_w, WALK, 0.2), _w(-3.5 - left_w / 2.0, (WALK) / 2.0, NEAR_CURB + 0.1), curb)
-	_box(self, Vector3(left_w, WALK, 0.2), _w(3.5 + left_w / 2.0, (WALK) / 2.0, NEAR_CURB + 0.1), curb)
-	_box(self, Vector3(span, WALK, 0.2), _w(0, (WALK) / 2.0, FAR_CURB - 0.1), curb)
-	# 진입로 양옆 연석
+	# 인도·연석은 서로 겹치지 않고 맞닿게만 놓는다.
+	# (윗면 높이가 같은 상자가 겹치면 겹친 곳에서 두 면이 번갈아 그려져 깜빡인다)
+	var cw := 0.2                         # 연석 폭
+	var half := span / 2.0
+	# 이쪽 인도: 진입로(폭 6.8 m)와 진입로 옆 연석을 비우고 양쪽에, 도로 쪽 연석 안쪽까지
+	var walk_z0 := -0.6
+	var walk_z1 := NEAR_CURB + cw
+	var walk_d := walk_z0 - walk_z1
+	var side_x := 3.4 + cw               # 진입로 옆 연석 바깥쪽
+	var walk_w := half - side_x
 	for sx in [-1.0, 1.0]:
-		_box(self, Vector3(0.2, WALK, near_w), _w(sx * 3.5, (WALK) / 2.0, -0.6 - near_w / 2.0), curb)
+		_box(self, Vector3(walk_w, WALK, walk_d), _w(sx * (side_x + walk_w / 2.0), WALK / 2.0, (walk_z0 + walk_z1) / 2.0), pav)
+		# 진입로 옆 연석 (인도 깊이만큼)
+		_box(self, Vector3(cw, WALK, walk_d), _w(sx * (3.4 + cw / 2.0), WALK / 2.0, (walk_z0 + walk_z1) / 2.0), curb)
+		# 도로 쪽 연석 (진입로 옆 연석의 끝 모서리까지 덮는다)
+		var curb_w := half - 3.4
+		_box(self, Vector3(curb_w, WALK, cw), _w(sx * (3.4 + curb_w / 2.0), WALK / 2.0, NEAR_CURB + cw / 2.0), curb)
+	# 건너편: 도로 쪽 연석, 그 뒤로 인도
+	_box(self, Vector3(span, WALK, cw), _w(0, WALK / 2.0, FAR_CURB - cw / 2.0), curb)
+	var far_d := (FAR_CURB - cw) - FAR_EDGE
+	_box(self, Vector3(span, WALK, far_d), _w(0, WALK / 2.0, FAR_CURB - cw - far_d / 2.0), pav)
 	# 맨홀과 빗물받이
 	var manhole := load(TEX + "manhole.png") as Texture2D
 	var drain := load(TEX + "drain.png") as Texture2D
