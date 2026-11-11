@@ -186,10 +186,14 @@ func _build_gates(b3_low: ParkingFloor) -> void:
 ## 미리 구운 간접광 (VoxelGI). 모든 층이 같은 모양이므로 한 번 구운 결과를 나눠 쓴다.
 ## SDFGI는 카메라를 따라 계산이 쌓여서, 순간이동 직후 밝기가 출렁이므로 여기서는 쓰지 않는다.
 func _build_gi(floors: Array) -> void:
+	# 화면 없이(headless) 실행하면 제대로 구울 수 없으므로 아무것도 하지 않는다
+	if DisplayServer.get_name() == "headless":
+		return
 	var data: VoxelGIData = null
 	if FileAccess.file_exists(GI_PATH) and LevelEnv.arg_value("--rebake-gi") == "":
-		data = load(GI_PATH)
-	var first: VoxelGI = null
+		data = load(GI_PATH) as VoxelGIData
+		if data != null and data.get_bounds().size == Vector3.ZERO:
+			data = null   # 망가진 파일: 다시 굽는다
 	for f: Node3D in floors:
 		var v := VoxelGI.new()
 		v.name = "GI"
@@ -197,13 +201,14 @@ func _build_gi(floors: Array) -> void:
 		v.size = Vector3(72.0, 6.4, 33.0)
 		v.position = Vector3(36.0, 2.7, 16.0)
 		f.add_child(v)
-		if first == null:
-			first = v
 	if data == null:
 		var t := Time.get_ticks_msec()
 		var f0_gi: VoxelGI = f0.get_node("GI")
 		f0_gi.bake(self, false)
 		data = f0_gi.data
+		if data == null or data.get_bounds().size == Vector3.ZERO:
+			push_warning("VoxelGI bake failed; running without baked GI")
+			return
 		data.interior = true
 		data.energy = 1.2
 		data.propagation = 0.65
