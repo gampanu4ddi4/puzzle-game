@@ -49,7 +49,9 @@ func build(world_origin: Vector3) -> void:
 	_rng.seed = light_seed
 	_mats = ParkingMats.for_floor(world_origin)
 	_font = SystemFont.new()
-	_font.font_names = PackedStringArray(["Malgun Gothic", "Noto Sans KR", "Arial"])
+	# Windows: 맑은 고딕 / Ubuntu: Noto Sans CJK KR(기본 설치) / 그 밖: 나눔고딕, Noto, DejaVu
+	_font.font_names = PackedStringArray(["Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", "NanumGothic", "UnDotum", "Noto Sans", "DejaVu Sans", "Arial"])
+	_font.allow_system_fallback = true
 	_font.font_weight = 700
 	_build_shell()
 	_build_structure()
@@ -261,8 +263,8 @@ func _build_tunnel() -> void:
 		_place_arrow(tilt, Vector3.ZERO, PI)
 	# 터널 조명: 아래쪽은 켜져 있고, 위쪽은 깜빡인다 (모든 층에서 같은 배치)
 	var tan_slope := RAMP_RISE / RAMP_LEN
-	_fixture(g, tunnel_point(7.0) + Vector3(0, H, 0), 0.0, "on", tan_slope)
-	_fixture(g, tunnel_point(17.0) + Vector3(0, H, 0), 0.0, "flicker", tan_slope)
+	_fixture(g, tunnel_point(7.0) + Vector3(0, H, 0), 0.0, "on", tan_slope, false)
+	_fixture(g, tunnel_point(17.0) + Vector3(0, H, 0), 0.0, "flicker", tan_slope, false)
 
 
 # ================================================================ 바닥 표시
@@ -322,7 +324,9 @@ func _build_lights() -> void:
 			_fixture(g, Vector3(bx + 4.0, H, zc), 0.0)
 
 
-func _fixture(parent: Node, pos: Vector3, yaw: float, state := "", tilt := 0.0) -> void:
+## shadows=false: 경사로 터널처럼 텅 빈 곳. 그림자가 거의 안 보이고, 순간이동 직후 그림자 준비가 늦어
+## 화면이 어둡게 깜빡이는 원인이 된다.
+func _fixture(parent: Node, pos: Vector3, yaw: float, state := "", tilt := 0.0, shadows := true) -> void:
 	if state == "":
 		var r := _rng.randf()
 		state = "on" if r < 0.72 else ("off" if r < 0.95 else "flicker")
@@ -340,7 +344,7 @@ func _fixture(parent: Node, pos: Vector3, yaw: float, state := "", tilt := 0.0) 
 		light.light_size = 0.25
 		light.light_specular = 0.6
 		light.light_volumetric_fog_energy = 0.6
-		light.shadow_enabled = true
+		light.shadow_enabled = shadows
 		light.shadow_bias = 0.05
 		light.shadow_normal_bias = 1.5
 		light.distance_fade_enabled = true

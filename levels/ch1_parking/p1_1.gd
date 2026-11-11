@@ -7,10 +7,13 @@
 ##   F0     : 진짜 B2. 플레이어가 돌아다니는 곳.
 ##   F_down : B2 아래층 자리. 서쪽 경사로 아래쪽 끝에서만 보인다. 들어갈 수 없다.
 ##   B3     : 정답 경로의 도착지. 멀리 떨어진 곳에 따로 놓는다.
+##   B4     : B3 아래층 자리. B3로 올라가는 경사로에서 뒤를 돌아보면 보인다. 들어갈 수 없다.
 ##
 ## 관문:
 ##   gate_down (서쪽 경사로 가운데) --정방향(내려감)--> gate_up 자리로: F0 동쪽 경사로로 다시 내려온다 (반복)
 ##   gate_up   (동쪽 경사로 가운데) --역방향(올라감)--> gate_b3 자리로: B3로 올라간다 (정답)
+##   gate_b3   (B3로 가는 경사로)   --정방향(내려감)--> gate_up 자리로: 왔던 길 그대로 B2로 돌아간다
+## B3 바닥에 들어선 뒤, 플레이어가 보지 않는 사이 B3 입구에 방화셔터가 내려온다 (1-2 도입).
 ##
 ## 실행 인자 (테스트용):
 ##   --test=down|up|tour|hints   자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
@@ -47,7 +50,6 @@ var _stain: Decal
 var _b3_shutter: Node3D
 var _b3_shutter_body: StaticBody3D
 var _b3_shutter_closed := false
-var _arrived_b3 := false
 var _sign_pending := false
 var _drip: AudioStreamPlayer3D
 var _drip_next := 0.0
@@ -69,16 +71,13 @@ func _ready() -> void:
 	f0 = _make_floor("F0", Vector3.ZERO, "B2")
 	_make_floor("F_down", STEP, "B2", false)
 	b3 = _make_floor("B3", B3_ORIGIN, "B3", true, false, "출구  ↑ B2")
-	var b3_low := ParkingFloor.new()
-	b3_low.name = "B3_LowerTunnel"
-	b3_low.position = B3_ORIGIN + STEP
-	add_child(b3_low)
-	b3_low.build_tunnel_only(b3_low.position)
+	# B3 아래층 자리: 이 층의 동쪽 터널이 B3로 올라가는 경사로가 된다
+	var b4 := _make_floor("B4", B3_ORIGIN + STEP, "B4", false, false, "출구  ↑ B3")
 
-	_build_caps(b3_low)
-	_build_shutters(b3_low)
-	_build_gates(b3_low)
-	_build_gi([get_node("F_up"), f0, get_node("F_down"), b3, b3_low])
+	_build_caps()
+	_build_shutters(b4)
+	_build_gates(b4)
+	_build_gi([get_node("F_up"), f0, get_node("F_down"), b3, b4])
 	_build_stain()
 	_build_audio()
 	LevelEnv.add_post_fx(self)
@@ -86,10 +85,14 @@ func _ready() -> void:
 
 	_hold = FrameHold.new()
 	add_child(_hold)
-	for g: LoopGate in [gate_down, gate_up]:
-		g.crossed.connect(func(_f: bool, tp: bool) -> void:
-			if tp:
-				_hold.hold(1))
+	# 순간이동 직후 덮어 둘 프레임 수. 처음 보는 층(B3, B4)으로 갈 때는 그 층의 조명과 간접광이
+	# 준비되는 데 2프레임이 걸려서 3프레임(1/20초)을 덮는다. 이미 보이던 층으로 갈 때는 1프레임이면 된다.
+	gate_down.crossed.connect(func(_f: bool, tp: bool) -> void:
+		if tp: _hold.hold(1))
+	gate_up.crossed.connect(func(f: bool, tp: bool) -> void:
+		if tp: _hold.hold(1 if f else 3))
+	gate_b3.crossed.connect(func(_f: bool, tp: bool) -> void:
+		if tp: _hold.hold(1))
 	var test := LevelEnv.arg_value("--test")
 	_spawn_player(test == "")
 	if test != "":
@@ -129,12 +132,10 @@ func _cap(origin: Vector3, center: Vector3, size: Vector3) -> void:
 	add_child(body)
 
 
-func _build_caps(b3_low: ParkingFloor) -> void:
+func _build_caps() -> void:
 	# 위층 자리의 경사로 위쪽 끝: 아무 데도 이어지지 않으니 막는다 (보이지 않는 곳)
 	var up_origin := -STEP
 	_cap(up_origin, ParkingFloor.tunnel_point(ParkingFloor.RAMP_LEN) + Vector3(0.15, 1.35, 0), Vector3(0.3, 2.7, 6.6))
-	# B3 아래 터널의 아래쪽 끝
-	_cap(b3_low.position, ParkingFloor.tunnel_point(0.0) + Vector3(-0.15, 1.35, 0), Vector3(0.3, 2.7, 6.6))
 
 
 func _shutter(at: Vector3) -> Array:
@@ -153,11 +154,11 @@ func _shutter(at: Vector3) -> Array:
 	return [s, body]
 
 
-func _build_shutters(b3_low: ParkingFloor) -> void:
+func _build_shutters(b4: ParkingFloor) -> void:
 	# B3의 위로 가는 경사로는 처음부터 닫혀 있다
 	_shutter(B3_ORIGIN + ParkingFloor.tunnel_point(1.0))
-	# B3로 올라온 경사로: 플레이어가 지나가고 등을 돌린 사이 내려온다 (1-2 도입)
-	var pair := _shutter(b3_low.position + ParkingFloor.tunnel_point(5.0))
+	# B3로 올라온 경사로의 꼭대기(B3 입구 바로 아래): B3에 들어선 뒤 안 보는 사이 내려온다
+	var pair := _shutter(b4.position + ParkingFloor.tunnel_point(22.0))
 	_b3_shutter = pair[0]
 	_b3_shutter_body = pair[1]
 	_b3_shutter.visible = false
@@ -173,14 +174,16 @@ func _gate(node_name: String, floor_origin: Vector3) -> LoopGate:
 	return g
 
 
-func _build_gates(b3_low: ParkingFloor) -> void:
+func _build_gates(b4: ParkingFloor) -> void:
 	gate_down = _gate("GateDown", STEP)          # F0 서쪽 경사로 = F_down의 동쪽 터널
 	gate_up = _gate("GateUp", Vector3.ZERO)       # F0 동쪽 경사로
-	gate_b3 = _gate("GateB3", b3_low.position)    # B3로 올라가는 경사로
+	gate_b3 = _gate("GateB3", b4.position)        # B3로 올라가는 경사로 = B4의 동쪽 터널
 	gate_down.forward_target = gate_up
 	gate_up.reverse_target = gate_b3
+	gate_b3.forward_target = gate_up              # 다시 내려가면 왔던 길 그대로 B2로
 	gate_down.crossed.connect(_on_gate_down)
 	gate_up.crossed.connect(_on_gate_up)
+	gate_b3.crossed.connect(_on_gate_b3)
 
 
 ## 미리 구운 간접광 (VoxelGI). 모든 층이 같은 모양이므로 한 번 구운 결과를 나눠 쓴다.
@@ -287,8 +290,12 @@ func _on_gate_down(forward: bool, teleported: bool) -> void:
 
 func _on_gate_up(forward: bool, teleported: bool) -> void:
 	if not forward and teleported:
-		_arrived_b3 = true
 		print("went up -> B3 ramp")
+
+
+func _on_gate_b3(forward: bool, teleported: bool) -> void:
+	if forward and teleported:
+		print("went back down -> B2")
 
 
 func _process(delta: float) -> void:
@@ -351,14 +358,14 @@ func _update_sign_hint() -> void:
 
 
 func _update_b3_shutter() -> void:
-	if _b3_shutter_closed or not _arrived_b3 or player == null:
+	if _b3_shutter_closed or not solved or player == null:
 		return
 	var cam: Camera3D = player.get("camera")
 	if cam == null:
 		return
-	# 플레이어가 셔터 위치를 지나 올라갔고, 셔터 자리가 화면에 없을 때 내려온다
+	# 플레이어가 B3 바닥에 들어섰고, 셔터 자리가 화면에 없을 때 내려온다
 	var base := _b3_shutter.global_position
-	if player.global_position.x < base.x + 2.0:
+	if player.global_position.x < B3_ORIGIN.x + 1.5:
 		return
 	for off in [Vector3(0, 0.2, -2.8), Vector3(0, 0.2, 2.8), Vector3(0, 2.5, -2.8), Vector3(0, 2.5, 2.8), Vector3(0, 1.3, 0)]:
 		if cam.is_position_in_frustum(base + off):
@@ -399,6 +406,21 @@ func _run_test(kind: String) -> void:
 			await get_tree().create_timer(1.0).timeout
 			await _save(out.path_join("up_look_back.png"))
 			print("shutter closed: ", _b3_shutter_closed, "  solved: ", solved)
+		"backup":
+			# 아래를 보면서 뒷걸음질로 올라간다: 넘어가는 순간에도 아래층이 계속 보여야 한다
+			await _test_walk(out, "backup", ParkingFloor.tunnel_point(8.0) + Vector3(0, 0.05, 0), PI / 2, gate_up, 16.0, Vector3(0, 0, 1))
+			print("after backing into B3: shutter closed=", _b3_shutter_closed, " (보고 있으니 false여야 함)")
+			player.rotation.y += PI   # B3 쪽으로 돌아선다 → 셔터가 안 보이는 사이 내려온다
+			await get_tree().create_timer(0.5).timeout
+			player.rotation.y += PI   # 다시 돌아본다
+			await get_tree().create_timer(1.0).timeout
+			await _save(out.path_join("backup_look_back.png"))
+			print("after turning: shutter closed=", _b3_shutter_closed)
+		"return":
+			# B3로 올라가다가 관문을 넘은 뒤 다시 내려오면 B2로 돌아가야 한다
+			await _test_walk(out, "ret_up", ParkingFloor.tunnel_point(8.0) + Vector3(0, 0.05, 0), -PI / 2, gate_up, 1.5)
+			player.rotation.y += PI
+			await _test_walk(out, "ret_down", player.global_position, player.rotation.y, gate_b3, 8.0)
 		"tour":
 			await _test_tour(out)
 		"hints":
@@ -407,7 +429,7 @@ func _run_test(kind: String) -> void:
 
 
 ## 플레이어를 자동으로 걷게 해서 관문을 지나게 하고, 순간이동 전후 화면을 비교한다.
-func _test_walk(out: String, tag: String, start: Vector3, yaw: float, gate: LoopGate, walk_after: float) -> void:
+func _test_walk(out: String, tag: String, start: Vector3, yaw: float, gate: LoopGate, walk_after: float, move := Vector3(0, 0, -1)) -> void:
 	player.global_position = start
 	player.rotation.y = yaw
 	player.call("set_look", -0.05)
@@ -417,7 +439,7 @@ func _test_walk(out: String, tag: String, start: Vector3, yaw: float, gate: Loop
 		if tp:
 			state["hit"] = true
 	gate.crossed.connect(on_cross)
-	player.set("auto_move", Vector3(0, 0, -1))
+	player.set("auto_move", move)
 	# 순간이동이 일어난 프레임을 찾아, 직전 화면(before)과 직후 화면(after_N)을 저장한다.
 	# 비교 기준: 순간이동 없이 한 프레임 걸었을 때의 차이(baseline)와 비슷하면 이음새가 안 보이는 것.
 	var prev: Image = null
@@ -438,6 +460,8 @@ func _test_walk(out: String, tag: String, start: Vector3, yaw: float, gate: Loop
 				img.save_png(out.path_join("%s_after_%02d.png" % [tag, frames_after]))
 			if frames_after == 2:
 				print("%s: before vs after_02 (첫 실제 화면) = %.4f" % [tag, _diff(prev, img)])
+			if frames_after >= 3 and frames_after <= 6 and LevelEnv.arg_value("--frame-diffs") != "":
+				print("%s: before vs after_%02d = %.4f" % [tag, frames_after, _diff(prev, img)])
 			if frames_after == 10:
 				print("%s: before vs after_10 = %.4f" % [tag, _diff(prev, img)])
 			if frames_after >= 30:

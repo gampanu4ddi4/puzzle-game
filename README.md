@@ -4,21 +4,28 @@
 
 문 닫은 복합센터. 주차장은 되돌아가야 나아가고, 수영장은 같은 타일끼리 이어지고, 학교는 보지 않을 때 바뀐다.
 
-## 실행하기 (Windows)
+## 실행하기
 
 ```bash
 git clone https://github.com/gampanu4ddi4/puzzle-game.git
 ```
 
-- **play.bat**: 게임 실행 (퍼즐 1-1부터 시작)
-- **edit.bat**: Godot 편집기로 프로젝트 열기
+| | Windows | Ubuntu (Linux) |
+|---|---|---|
+| 게임 실행 (퍼즐 1-1부터) | `play.bat` 더블클릭 | `./play.sh` |
+| Godot 편집기로 열기 | `edit.bat` | `./edit.sh` |
 
-설치할 것은 없다. 처음 실행하면 bat 파일이 알아서 준비한다.
-1. Godot 4.7.2가 `.tools\godot`에 없으면 공식 배포 파일(약 86 MB)을 내려받아 푼다.
+설치할 것은 없다. 처음 실행하면 스크립트가 알아서 준비한다.
+1. Godot 4.7.2가 `.tools/godot`에 없으면 공식 배포 파일(Windows 약 86 MB, Linux 약 78 MB)을 내려받아 푼다.
+   Ubuntu에서는 내려받기에 `curl` 또는 `wget`이 필요하다 (보통 기본으로 있다).
 2. 에셋을 처음 한 번 가져온다 (약 1분).
 3. 게임 첫 실행 때 간접광을 굽는다 (약 1초).
 
 `.tools`와 `.godot` 폴더는 PC마다 따로 만들어지며 저장소에 올라가지 않는다.
+
+Ubuntu 참고:
+- Vulkan을 지원하는 그래픽 드라이버가 필요하다 (최근 Ubuntu의 기본 Mesa 드라이버나 NVIDIA 드라이버면 된다).
+- 한글 간판은 `Noto Sans CJK KR` 글꼴로 나온다. 한글이 네모로 보이면 `sudo apt install fonts-noto-cjk`.
 
 ## 기획 문서
 

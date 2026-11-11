@@ -7,7 +7,7 @@ extends CharacterBody3D
 @export var mouse_sensitivity := 0.0022
 @export var eye_height := 1.6
 @export var crouch_eye_height := 1.0
-@export var step_length := 0.75
+@export var step_length := 1.7   # 발소리 간격(m). 실제 보폭보다 길게 잡아 덜 거슬리게 한다
 @export var sfx_bus := "Master"
 
 ## 테스트용: 0이 아니면 키 입력 대신 이 방향(로컬, -Z가 앞)으로 걷는다
