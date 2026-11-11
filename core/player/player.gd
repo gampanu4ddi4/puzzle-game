@@ -1,12 +1,14 @@
 ## 1인칭 플레이어.
-## WASD 걷기, Shift 천천히, Ctrl 웅크리기, Space 점프, E 상호작용, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷.
+## WASD 걷기, Shift 천천히, Ctrl 웅크리기, Space 점프, E 상호작용, 마우스 둘러보기, F12 스크린샷.
+## (Esc는 메뉴가 맡는다.) 감도, 상하 반전, 시야각, 화면 흔들림, 가운데 점은 설정(Settings)을 따른다.
 extends CharacterBody3D
 
 @export var walk_speed := 3.2
 @export var slow_speed := 1.6
 @export var crouch_speed := 1.6
 @export var jump_velocity := 4.2       # 약 0.9 m 높이까지
-@export var mouse_sensitivity := 0.0022
+const BASE_SENSITIVITY := 0.0022
+@export var mouse_sensitivity := BASE_SENSITIVITY
 @export var eye_height := 1.6
 @export var crouch_eye_height := 1.0
 @export var reach := 2.3               # 상호작용 거리
@@ -37,6 +39,9 @@ var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _jump_requested := false
 var _dot: ColorRect
+var _invert_y := false
+var _head_bob := true
+var _always_dot := false
 
 
 func _ready() -> void:
@@ -79,6 +84,17 @@ func _ready() -> void:
 
 	if input_enabled:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_apply_settings()
+	Settings.changed.connect(_apply_settings)
+
+
+func _apply_settings() -> void:
+	mouse_sensitivity = BASE_SENSITIVITY * float(Settings.get_value("mouse_sensitivity"))
+	_invert_y = bool(Settings.get_value("invert_y"))
+	_head_bob = bool(Settings.get_value("head_bob"))
+	_always_dot = bool(Settings.get_value("crosshair"))
+	if camera:
+		camera.fov = float(Settings.get_value("fov"))
 
 
 func set_look(pitch: float) -> void:
@@ -105,13 +121,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-event.relative.x * mouse_sensitivity)
-		set_look(clampf(_pitch - event.relative.y * mouse_sensitivity, -1.45, 1.45))
+		var dy: float = event.relative.y * (-1.0 if _invert_y else 1.0)
+		set_look(clampf(_pitch - dy * mouse_sensitivity, -1.45, 1.45))
 	elif event is InputEventMouseButton and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
-			KEY_ESCAPE:
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			KEY_F12:
 				_save_screenshot()
 			KEY_E:
@@ -157,7 +172,8 @@ func _physics_process(delta: float) -> void:
 			_play_step(slow or crouching)
 
 	var target := crouch_eye_height if crouching else eye_height
-	camera.position.y = lerpf(camera.position.y, target + sin(_bob) * 0.018, 10.0 * delta)
+	var bob := sin(_bob) * 0.018 if _head_bob else 0.0
+	camera.position.y = lerpf(camera.position.y, target + bob, 10.0 * delta)
 	_update_hover()
 
 
@@ -215,7 +231,8 @@ func _update_hover() -> void:
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if not hit.is_empty() and hit["collider"] is Interactable and (hit["collider"] as Interactable).can_interact():
 		hovered = hit["collider"]
-	_dot.visible = hovered != null
+	_dot.visible = hovered != null or _always_dot
+	_dot.color = Color(1, 1, 1, 0.75) if hovered != null else Color(1, 1, 1, 0.35)
 
 
 func _play_step(quiet: bool) -> void:

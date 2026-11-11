@@ -1,3 +1,3 @@
 @echo off
-rem Runs the game (starts at puzzle 1-1).
-call "%~dp0tools\godot.bat" --windowed --resolution 1600x900
+rem Runs the game (main menu, then the prologue). Window size follows the in-game settings.
+call "%~dp0tools\godot.bat"

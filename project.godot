@@ -8,6 +8,10 @@ config/name="새솔센터"
 run/main_scene="res://levels/ch1_parking/p1_1.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
+[autoload]
+
+Settings="*res://core/settings.gd"
+
 [display]
 
 window/size/viewport_width=1920

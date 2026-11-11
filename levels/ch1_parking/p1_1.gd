@@ -77,6 +77,7 @@ var _city: AudioStreamPlayer
 var _far: AudioStreamPlayer3D
 var _out_drip_next := 0.0
 var traces: Array[String] = []
+var menu: Menu
 
 # 테스트용 길 안내
 var _route: Array[Vector3] = []
@@ -92,7 +93,11 @@ func _ready() -> void:
 	if hold != "":
 		_hold_frames = int(hold)
 	ProcAudio.ensure_reverb_bus("Parking", 0.85, 0.32)
-	LevelEnv.create(self, LevelEnv.GI.BAKED)
+	Settings.refresh_audio()
+	var we := LevelEnv.create(self, LevelEnv.GI.BAKED)
+	# 그래픽 품질과 밝기는 설정을 따른다
+	Settings.apply_environment(we.environment)
+	Settings.changed.connect(func() -> void: Settings.apply_environment(we.environment))
 
 	b2 = _make_floor("B2", Vector3.ZERO, "B2", true, true, true, "출구  ↑ B1")
 	var upper := HelixRamp.upper_origin()
@@ -136,8 +141,17 @@ func _ready() -> void:
 	var test := LevelEnv.arg_value("--test")
 	var start := LevelEnv.arg_value("--start")
 	if start == "":
-		start = "prologue" if (test == "" or test == "prologue") else "b2"
-	_spawn_player(test == "", start)
+		start = "prologue" if (test in ["", "prologue", "menu"]) else "b2"
+	# 메뉴: 그냥 실행하면 메인 화면부터. 뒤로는 시작 지점의 실제 장면이 돌아간다.
+	menu = Menu.new()
+	add_child(menu)
+	menu.start_requested.connect(_on_start)
+	var show_menu := test in ["", "menu"] and start == "prologue"
+	_spawn_player(test == "" and not show_menu, start)
+	if show_menu:
+		menu.show_main()
+	elif test == "":
+		menu.in_game = true
 	if test != "":
 		_run_test(test)
 
@@ -364,6 +378,13 @@ func _spawn_player(interactive: bool, start: String) -> void:
 
 # ================================================================ 진행
 
+## 메인 화면에서 "새로 시작": 메뉴가 걷히고 그 자리에서 바로 움직일 수 있다
+func _on_start() -> void:
+	player.set("input_enabled", true)
+	player.rotation.y = PI
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
 ## 위층을 B1(프롤로그) 또는 B3(그 뒤)로 정한다. 숨긴 쪽은 충돌과 처리도 끈다.
 func _set_upper(is_b3: bool) -> void:
 	b1.visible = not is_b3
@@ -436,9 +457,12 @@ func _on_gate_down(forward: bool, teleported: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	# 메인 화면 뒤 장면: 시선이 아주 천천히 흔들린다
+	if menu and menu.is_open() and not menu.in_game and player:
+		player.rotation.y = PI + sin(Time.get_ticks_msec() / 1000.0 * 0.12) * 0.06
 	_update_prologue()
 	if not solved and prologue_done:
-		elapsed += delta * hint_scale
+		elapsed += delta * hint_scale * Settings.hint_scale()
 		while hint_stage < HINT_TIMES.size() and elapsed >= HINT_TIMES[hint_stage]:
 			hint_stage += 1
 			_apply_hint(hint_stage)
@@ -616,6 +640,8 @@ func _run_test(kind: String) -> void:
 			await _test_tour(out)
 		"prologue":
 			await _test_prologue(out)
+		"menu":
+			await _test_menu(out)
 		"hints":
 			await _test_hints(out)
 	get_tree().quit()
@@ -706,6 +732,33 @@ func _test_tour(out: String) -> void:
 		await _save(out.path_join(s[0] + ".png"))
 		await get_tree().create_timer(2.0).timeout   # 셰이더 준비가 끝난 뒤의 fps
 		print("tour ", s[0], "  fps=", Engine.get_frames_per_second())
+
+
+## 메뉴 화면들을 찍는다: 메인, 설정, 크레딧, 일시정지
+func _test_menu(out: String) -> void:
+	await get_tree().create_timer(1.5).timeout
+	await _save(out.path_join("m1_main.png"))
+	menu.call("_open", "settings")
+	await get_tree().create_timer(0.6).timeout
+	await _save(out.path_join("m2_settings.png"))
+	menu.call("_open", "credits")
+	await get_tree().create_timer(0.6).timeout
+	await _save(out.path_join("m3_credits.png"))
+	# 설정이 실제로 적용되는지: 시야각과 감도
+	var before: float = player.get("camera").fov
+	Settings.set_value("fov", 90.0)
+	print("fov setting applied: %.0f -> %.0f" % [before, player.get("camera").fov])
+	Settings.set_value("fov", 75.0)
+	menu.close()
+	menu.in_game = true
+	player.set("input_enabled", true)
+	await get_tree().create_timer(0.3).timeout
+	menu.show_pause()
+	await get_tree().create_timer(0.6).timeout
+	print("paused while pause menu open: ", get_tree().paused)
+	await _save(out.path_join("m4_pause.png"))
+	menu.close()
+	print("unpaused after close: ", not get_tree().paused)
 
 
 ## 테스트용: 카메라가 이 점을 정확히 보게 한다

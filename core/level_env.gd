@@ -66,7 +66,7 @@ static func create(parent: Node, gi: GI = GI.SDFGI) -> WorldEnvironment:
 	return we
 
 
-static func add_post_fx(parent: Node) -> void:
+static func add_post_fx(parent: Node) -> ShaderMaterial:
 	var layer := CanvasLayer.new()
 	layer.name = "PostFX"
 	layer.layer = 10
@@ -78,6 +78,11 @@ static func add_post_fx(parent: Node) -> void:
 	rect.material = m
 	layer.add_child(rect)
 	parent.add_child(layer)
+	var apply := func() -> void:
+		m.set_shader_parameter("grain", 0.035 if Settings.get_value("film_grain") else 0.0)
+	apply.call()
+	Settings.changed.connect(apply)
+	return m
 
 
 static func arg_value(key: String) -> String:
