@@ -9,7 +9,7 @@ extends CharacterBody3D
 @export var mouse_sensitivity := 0.0022
 @export var eye_height := 1.6
 @export var crouch_eye_height := 1.0
-@export var reach := 2.0               # 상호작용 거리
+@export var reach := 2.3               # 상호작용 거리
 @export var step_length := 1.7         # 발소리 간격(m). 실제 보폭보다 길게 잡아 덜 거슬리게 한다
 @export var sfx_bus := "Master"
 
@@ -144,6 +144,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= 9.8 * delta
 	_jump_requested = false
+	_try_step_up(delta)
 	var before := global_position
 	move_and_slide()
 
@@ -158,6 +159,36 @@ func _physics_process(delta: float) -> void:
 	var target := crouch_eye_height if crouching else eye_height
 	camera.position.y = lerpf(camera.position.y, target + sin(_bob) * 0.018, 10.0 * delta)
 	_update_hover()
+
+
+## 낮은 턱(보도 연석, 주차 턱 등 STEP_HEIGHT 이하)은 걸어서 올라간다.
+## 앞이 벽처럼 막혔는데, 그만큼 들어 올린 위치에서는 막히지 않으면 몸을 올려 준다 (바닥 붙이기가 다시 내려 준다).
+const STEP_HEIGHT := 0.22
+
+func _try_step_up(delta: float) -> void:
+	if not is_on_floor():
+		return
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if motion.length() < 0.0005:
+		return
+	var hit := move_and_collide(motion, true, 0.001, false, 4)
+	if hit == null:
+		return
+	# 둥근 발이 턱 모서리에 닿으면 충돌 방향이 비스듬하게(위쪽 성분 0.5 안팎) 나온다.
+	# 경사로·비탈은 위쪽 성분이 0.94 이상(20도 이하)이므로 0.85를 기준으로 가른다.
+	var blocked_by_step := false
+	for i in hit.get_collision_count():
+		if hit.get_normal(i).y < 0.85:
+			blocked_by_step = true
+	if not blocked_by_step:
+		return   # 바닥이나 비탈(경사로)에 닿았을 뿐이다
+	var up := Vector3(0, STEP_HEIGHT, 0)
+	if test_move(global_transform, up):
+		return
+	var raised := global_transform.translated(up)
+	if test_move(raised, motion * 2.0):
+		return   # 올라가도 막힌다: 진짜 벽
+	global_position += up
 
 
 ## 웅크리면 몸 높이도 줄어서 낮은 곳을 지나갈 수 있다. 머리 위가 막혀 있으면 일어서지 않는다.

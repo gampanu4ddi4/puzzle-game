@@ -393,7 +393,7 @@ func _update_prologue() -> void:
 	if in_b1 and not _barrier_lowered:
 		_barrier_lowered = true
 		prologue.lower_barrier()
-		_far.global_position = prologue.mouth + Vector3(3.9, 1.0, -1.4)
+		_far.global_position = prologue.mouth + Vector3(4.0, 1.3, -3.4)
 		_far.stream = ProcAudio.barrier()
 		_far.play()
 		print("prologue: entered B1, barrier lowered")
@@ -708,6 +708,14 @@ func _test_tour(out: String) -> void:
 		print("tour ", s[0], "  fps=", Engine.get_frames_per_second())
 
 
+## 테스트용: 카메라가 이 점을 정확히 보게 한다
+func _aim_at(target: Vector3) -> void:
+	var cam: Camera3D = player.get("camera")
+	var d := target - cam.global_position
+	player.rotation.y = atan2(-d.x, -d.z)
+	player.call("set_look", atan2(d.y, Vector2(d.x, d.z).length()))
+
+
 func _walk_to(points: Array[Vector3], timeout_s := 60.0) -> void:
 	_route = points
 	var deadline := Time.get_ticks_msec() + int(timeout_s * 1000.0)
@@ -719,27 +727,46 @@ func _walk_to(points: Array[Vector3], timeout_s := 60.0) -> void:
 		player.set("auto_move", Vector3.ZERO)
 
 
-## 프롤로그를 처음부터 끝까지 걷는다: 연석 점프 → 정산소 창문 열기 → 주차권 → 셔터 밑 웅크리기 → B1 → B2.
+## 프롤로그를 처음부터 끝까지 걷는다: 길 건너기 → 인도 턱 오르기 → 정산소 창문 열기 → 주차권
+## → 높이제한 바에 머리 부딪히기 → 셔터 밑 웅크리기 → B1 → B2.
 func _test_prologue(out: String) -> void:
 	var m := prologue.mouth
 	var gy := prologue.ground_y
 	await _save(out.path_join("p0_start.png"))
-	await _walk_to([Vector3(m.x - 2.0, gy, m.z - 11.0)])
-	player.call("request_jump")
-	await _walk_to([Vector3(m.x - 3.0, gy, m.z - 8.5)])
-	print("after curb: z=%.1f (넘었으면 %.1f보다 커야 함)" % [player.global_position.z, m.z - 9.7])
-	# 정산소 창문 앞에서 창문을 보고 E
-	await _walk_to([Vector3(m.x - 4.9, gy, m.z - 3.5)])
-	player.global_position = Vector3(m.x - 4.9, gy + 0.05, m.z - 3.5)   # 길 안내는 1 m 앞에서 멈추므로 정확히 세운다
-	player.rotation.y = PI / 2   # 서쪽(-X)을 본다
-	player.call("set_look", -0.15)
-	await get_tree().create_timer(0.3).timeout
+	player.rotation.y = 0.0   # 뒤(건너편 아파트)를 본다
+	await get_tree().create_timer(1.0).timeout
+	await _save(out.path_join("p0_behind.png"))
+	player.rotation.y = PI
+	# 길을 건너 이쪽 인도로 올라선다 (턱 0.15 m: 저절로 올라가야 한다)
+	await _walk_to([Vector3(m.x - 5.0, gy, m.z - 12.0), Vector3(m.x - 5.0, gy, m.z - 4.0)])
+	print("step up onto sidewalk: y=%.2f (인도 높이 %.2f 근처여야 함)" % [player.global_position.y, gy + Prologue.WALK])
+	await _save(out.path_join("p0_sidewalk.png"))
+	# 정산소 창문 앞 (진입로에서 창문을 본다)
+	await _walk_to([Vector3(m.x + 2.0, gy, m.z - 3.5)])
+	player.global_position = Vector3(m.x + 3.05, gy + 0.05, m.z - 2.95)
+	player.rotation.y = -PI / 2   # +X(정산소)를 본다
+	player.call("set_look", 0.0)
+	await get_tree().create_timer(0.5).timeout
+	await _save(out.path_join("p1_booth_closed.png"))
 	print("open window: ", player.call("try_interact"))
 	await get_tree().create_timer(1.0).timeout
-	await _save(out.path_join("p1_booth_open.png"))
-	player.call("set_look", -0.55)
+	_aim_at(prologue.ticket.global_position)
 	await get_tree().create_timer(0.3).timeout
+	await _save(out.path_join("p1_booth_open.png"))
 	print("take ticket: ", player.call("try_interact"), "  traces=", traces)
+	player.call("set_look", 0.0)
+	# 높이제한 바 밑에서 점프: 머리가 닿으면 바가 흔들린다
+	await _walk_to([Vector3(m.x, gy, m.z - 2.0)])
+	player.global_position = Vector3(m.x, gy + 0.05, m.z - 0.75)
+	player.rotation.y = PI
+	await get_tree().create_timer(0.3).timeout
+	player.call("request_jump")
+	await get_tree().create_timer(0.35).timeout
+	print("height bar swinging after jump: ", prologue.get("_bar_swinging"), "  max head y ~ ", player.global_position.y + 1.75)
+	player.global_position = Vector3(m.x, gy + 0.05, m.z - 3.0)
+	await get_tree().create_timer(0.8).timeout
+	player.call("set_look", 0.15)
+	await _save(out.path_join("p2_bar.png"))
 	player.call("set_look", 0.0)
 	# 입구로, 셔터 밑은 웅크려서
 	await _walk_to([Vector3(m.x, gy, m.z - 4.0), Vector3(m.x, gy, m.z - 0.5)])

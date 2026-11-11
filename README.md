@@ -64,6 +64,8 @@ B2에서는 서쪽 나선을 내려가면 다시 B2가 나오고, 내려온 동�
 ```bash
 blender --background --factory-startup --python tools/blender/gen_textures.py -- assets/textures/parking
 blender --background --factory-startup --python tools/blender/parking_kit.py -- assets/models/parking
+blender --background --factory-startup --python tools/blender/gen_street_textures.py -- assets/textures/street
+blender --background --factory-startup --python tools/blender/street_kit.py -- assets/models/street
 ```
 
 ### 스크린샷 자동 촬영

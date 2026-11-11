@@ -156,6 +156,25 @@ static func city() -> AudioStreamWAV:
 	return _wav(s, true)
 
 
+## 매달린 쇠막대에 부딪힌 소리: 둔탁한 쇳소리 + 체인 짤랑임.
+static func clank() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 41
+	var n := int(RATE * 1.2)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var hit := (sin(TAU * 220.0 * t) * 0.5 + sin(TAU * 587.0 * t) * 0.3 + sin(TAU * 1130.0 * t) * 0.2) * exp(-t * 9.0)
+		var chain := 0.0
+		for k in 4:
+			var tk := t - 0.08 - 0.13 * k
+			if tk > 0.0:
+				chain += sin(TAU * (2400.0 + 300.0 * k) * tk) * exp(-tk * 60.0) * 0.25
+		s[i] = (hit + chain + rng.randf_range(-1.0, 1.0) * exp(-t * 80.0) * 0.3) * 0.5
+	return _wav(s)
+
+
 ## 작은 딸깍 소리 (표지판이 바뀔 때 등).
 static func click() -> AudioStreamWAV:
 	var n := int(RATE * 0.06)
