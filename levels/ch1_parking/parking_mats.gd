@@ -50,6 +50,21 @@ static func for_floor(origin: Vector3) -> Dictionary:
 	ramp_wall.set_shader_parameter("slope_start_x", RAMP_START_X)
 	m["ramp_wall"] = ramp_wall
 
+	# 나선 경사로 벽: 바닥 높이가 계속 변하므로 띠를 셰이더 높이로 정하지 않고,
+	# Blender에서 띠(초록) / 선(노랑) / 위쪽 벽을 따로 나눠 재질로 칠한다.
+	var helix_wall := wall_m.duplicate() as ShaderMaterial
+	helix_wall.set_shader_parameter("band_height", -1.0)
+	helix_wall.set_shader_parameter("grime_strength", 0.0)
+	m["helix_wall"] = helix_wall
+	var helix_band := wall_m.duplicate() as ShaderMaterial
+	helix_band.set_shader_parameter("band_height", 1000.0)
+	helix_band.set_shader_parameter("grime_strength", 0.0)
+	helix_band.set_shader_parameter("streak_strength", 0.0)
+	m["helix_band"] = helix_band
+	var helix_line := helix_band.duplicate() as ShaderMaterial
+	helix_line.set_shader_parameter("band_color", Color("E3C23B"))
+	m["helix_line"] = helix_line
+
 	var ceil_m := _concrete("ceiling", 2.4, origin)
 	ceil_m.set_shader_parameter("macro_variation", 0.18)
 	ceil_m.set_shader_parameter("tint", Color(0.82, 0.83, 0.82))

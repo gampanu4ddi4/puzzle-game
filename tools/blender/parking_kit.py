@@ -179,6 +179,9 @@ M_SIGN = material("sign_green", "1F6B47", 0.5, 0.0, "1F6B47", 0.6)
 M_SHUTTER = material("shutter_metal", "A7ABA6", 0.45, 0.6)
 M_SHUTTER_DARK = material("shutter_dark", "4E524F", 0.5, 0.6)
 M_HAZARD = material("hazard_yellow", "D9B12E", 0.6)
+M_HWALL = material("helix_wall", "E4E3DC")      # 나선 벽 위쪽 (띠 없음) → 셰이더로 교체
+M_HBAND = material("helix_band", "4E7A5B")      # 나선 벽 아래 초록 띠 → 셰이더로 교체
+M_HLINE = material("helix_line", "E3C23B")      # 띠 위 노란 선 → 셰이더로 교체
 
 
 # ---------------------------------------------------------------- 부품
@@ -264,6 +267,121 @@ def ramp_tunnel():
         curbs.append(c)
     join([floor_, ceil, wl, wr] + curbs, "ramp_tunnel")
     export("ramp_tunnel")
+
+
+# ---------------------------------------------------------------- 나선 경사로
+# 값은 levels/ch1_parking/helix_geo.gd와 같아야 한다.
+HX_R = 9.0          # 차로 중심선 반지름 (안쪽 벽 6 m, 바깥 벽 12 m)
+HX_TURN = 1.5 * math.pi   # 270도
+HX_RISE = 3.0
+HX_STUB = 13.0      # 아래 진입로 길이
+HX_HALF = 3.0       # 차로 반폭
+
+
+def _arc(cx, cz, r, a0, a1, y0, y1, n):
+    """원호 중심선. 각도 a에서 점 = (cx + r sin a, cz - r cos a), 진행 방향 (cos a, sin a), 바깥쪽 (sin a, -cos a)."""
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        a = a0 + (a1 - a0) * t
+        pts.append((cx + r * math.sin(a), y0 + (y1 - y0) * t, cz - r * math.cos(a), math.sin(a), -math.cos(a)))
+    return pts
+
+
+def _arc_right(cx, cz, r, t0, t1, y, n, out_sign):
+    """출구용 원호 (오른쪽으로 꺾임). 점 = (cx - r cos t, cz - r sin t). out_sign: 바깥쪽 법선 방향."""
+    pts = []
+    for i in range(n + 1):
+        t = t0 + (t1 - t0) * i / n
+        nx, nz = -math.cos(t) * out_sign, -math.sin(t) * out_sign
+        pts.append((cx - r * math.cos(t), y, cz - r * math.sin(t), nx, nz))
+    return pts
+
+
+def helix_path(variant):
+    """나선 경사로 중심선 (Godot 좌표, 조각 원점 기준).
+    공통: 아래 진입로 (0,0,0)→(13,0,0), 나선 0→270도 (중심 (13, *, 9)), 끝점 (4, 3, 9), 진행 방향 -Z.
+    east: 끝에서 -Z로 38 m 곧게 → (4, 3, -29). 위층(B3, 90도 돌려 놓음) 입구에 닿는다.
+    west: 끝에서 -Z로 17 m → 오른쪽으로 90도 꺾어 (반지름 6) +X 방향으로 (10, 3, -14). B2 서쪽 입구에 닿는다.
+    """
+    path = [(0.0, 0.0, 0.0, 0.0, -1.0)]
+    path += _arc(HX_STUB, HX_R, HX_R, 0.0, HX_TURN, 0.0, HX_RISE, 72)
+    ex, ez = HX_STUB - HX_R, HX_R            # (4, 9)
+    if variant == "east":
+        path.append((ex, HX_RISE, ez - 38.0, -1.0, 0.0))
+    else:
+        path.append((ex, HX_RISE, ez - 17.0, -1.0, 0.0))   # (4, 3, -8)
+        # 중심 (10, -8), 반지름 6: t=0 → (4, -8) 진행 -Z, t=90도 → (10, -14) 진행 +X. 바깥쪽은 원의 바깥 = (-cos t, -sin t)
+        path += _arc_right(ex + 6.0, ez - 17.0, 6.0, 0.0, math.pi / 2, HX_RISE, 16, 1.0)[1:]
+    return path
+
+
+def helix_mesh(name, variant):
+    """나선 경사로 조각. 가운데(135도)에서는 휘어진 벽 때문에 양 끝이 보이지 않는다 → 반복 관문을 여기에 둔다.
+    east와 west는 나선 부분이 완전히 같고 출구만 다르다. 순간이동은 회전 없이 평행 이동만 한다."""
+    import bmesh
+
+    path = helix_path(variant)
+    n_helix_end = 1 + 72   # 나선 마지막 점의 인덱스
+    h = HX_HALF
+    # 단면: (안쪽 d0, 바깥쪽 d1, 높이 h0, h1, 재질, 출구에서는 바닥을 얇게)
+    sections = [
+        (-h, h, -0.3, 0.0, M_RAMP),
+        (-h, h, 2.7, 3.0, M_CEIL),
+        (h, h + 0.3, -0.3, 1.0, M_HBAND), (h, h + 0.3, 1.0, 1.05, M_HLINE), (h, h + 0.3, 1.05, 3.0, M_HWALL),
+        (-h - 0.3, -h, -0.3, 1.0, M_HBAND), (-h - 0.3, -h, 1.0, 1.05, M_HLINE), (-h - 0.3, -h, 1.05, 3.0, M_HWALL),
+        (-h, -h + 0.25, 0.0, 0.15, M_WHEELSTOP), (h - 0.25, h, 0.0, 0.15, M_WHEELSTOP),
+    ]
+    mats = []
+    for s in sections:
+        if s[4] not in mats:
+            mats.append(s[4])
+
+    me = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    for d0, d1, h0, h1, mat in sections:
+        rings = []
+        for idx, (cx, cy, cz, nx, nz) in enumerate(path):
+            lo = h0
+            # 출구 구간은 아래 진입로 천장 위를 지나므로, 바닥 판을 얇게 해 겹치는 면이 보이지 않게 한다
+            if idx > n_helix_end and h0 < -0.2 and h1 <= 0.0:
+                lo = -0.12
+            elif idx > n_helix_end and h0 < -0.2:
+                lo = -0.12
+            ring = []
+            for (d, hh) in ((d0, lo), (d1, lo), (d1, h1), (d0, h1)):
+                gx, gy, gz = cx + nx * d, cy + hh, cz + nz * d
+                ring.append(bm.verts.new((gx, -gz, gy)))
+            rings.append(ring)
+        new_faces = []
+        for a, b in zip(rings[:-1], rings[1:]):
+            for j in range(4):
+                k = (j + 1) % 4
+                f = bm.faces.new((a[j], a[k], b[k], b[j]))
+                f.material_index = mats.index(mat)
+                new_faces.append(f)
+        bmesh.ops.recalc_face_normals(bm, faces=new_faces)
+    bm.to_mesh(me)
+    bm.free()
+    for m in mats:
+        me.materials.append(m)
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    bpy.context.view_layer.objects.active = o
+    o.select_set(True)
+    try:
+        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(35))
+    except Exception:
+        pass
+    export(name)
+
+
+def helix_east():
+    helix_mesh("helix_east", "east")
+
+
+def helix_west():
+    helix_mesh("helix_west", "west")
 
 
 def fire_shutter():
@@ -369,6 +487,6 @@ def hanging_sign():
 clear()
 for build in (pillar, beam, wheel_stop, fixture, pipe_gray, pipe_sprinkler, ramp_tunnel,
               arrow, fire_cabinet, steel_door, exit_sign, traffic_cone, coffee_cup, hanging_sign,
-              fire_shutter):
+              fire_shutter, helix_east, helix_west):
     build()
 print("KIT DONE")

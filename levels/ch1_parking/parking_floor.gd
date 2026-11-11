@@ -1,8 +1,9 @@
-## 지하 주차장 한 층 (48 x 32 m) + 위층으로 올라가는 동쪽 경사로 터널.
-## 같은 설정(seed)으로 만든 층은 완전히 똑같이 생긴다. R1 반복 공간은 이 성질에 기댄다.
+## 지하 주차장 한 층 (48 x 32 m) + 위층으로 올라가는 동쪽 경사로.
+## 같은 설정(seed)으로 만든 층과 경사로는 완전히 똑같이 생긴다. R1 반복 공간은 이 성질에 기댄다.
 ##
-## 층 배치 약속 (docs/levels/ch1_parking.md, docs/TECH.md 3.1):
-##   한 층 아래 = 원점에서 STEP_DOWN 만큼 옮긴 곳. 그 층의 동쪽 터널이 이 층의 서쪽 입구로 이어진다.
+## 동쪽 경사로:
+##   east_tunnel: 직선 터널을 이 층이 직접 만든다 (룩 테스트용).
+##   east_helix : 동쪽 벽에 입구만 뚫는다. 나선 경사로는 HelixRamp가 따로 만든다 (퍼즐용).
 class_name ParkingFloor
 extends Node3D
 
@@ -21,7 +22,7 @@ const RAMP_RISE := 3.0
 const RAMP_HALF := 3.3          # 터널 바깥 반폭
 const DOOR_Z := 13.0
 const LIGHT_COLOR := Color("dcebd8")
-## 한 층 아래로 내려갈 때의 이동량
+## 한 층 아래로 내려갈 때의 이동량 (직선 터널)
 const STEP_DOWN := Vector3(-(W + RAMP_LEN), -RAMP_RISE, 0.0)
 
 # ---- 설정 (build 전에 정한다)
@@ -29,8 +30,9 @@ var floor_name := "B2"
 var sign_text := "출구  ↑ B1"
 var light_seed := 2209
 var west_opening := true        # 서쪽 벽에 아래층 경사로 입구를 뚫는다
-var east_tunnel := true         # 위층으로 가는 경사로 터널을 만든다
-var with_cup := true            # 앵커: 서쪽 경사로 입구의 쓰러진 커피컵
+var east_tunnel := true         # 위층으로 가는 직선 경사로 터널을 만든다
+var east_helix := false         # 동쪽 입구만 뚫는다 (나선은 HelixRamp가 만든다)
+var with_cup := true           # 앵커: 서쪽 경사로 입구의 쓰러진 커피컵
 var collisions := true
 
 # ---- 만든 뒤 바깥에서 쓰는 것
@@ -53,6 +55,8 @@ func build(world_origin: Vector3) -> void:
 	_font.font_names = PackedStringArray(["Malgun Gothic", "Noto Sans CJK KR", "Noto Sans KR", "NanumGothic", "UnDotum", "Noto Sans", "DejaVu Sans", "Arial"])
 	_font.allow_system_fallback = true
 	_font.font_weight = 700
+	if east_helix:
+		east_tunnel = false
 	_build_shell()
 	_build_structure()
 	if east_tunnel:
@@ -220,7 +224,7 @@ func _build_shell() -> void:
 		_box(g, Vector3(0.3, H, D - r1), Vector3(-0.15, H / 2, (r1 + D) / 2), wall)        # 서 (입구 남쪽)
 	else:
 		_box(g, Vector3(0.3, H, D), Vector3(-0.15, H / 2, D / 2), wall)
-	if east_tunnel:
+	if east_tunnel or east_helix:
 		_box(g, Vector3(0.3, H, r0), Vector3(W + 0.15, H / 2, r0 / 2), wall)               # 동 (경사로 북쪽)
 		_box(g, Vector3(0.3, H, D - r1), Vector3(W + 0.15, H / 2, (r1 + D) / 2), wall)     # 동 (경사로 남쪽)
 	else:
@@ -351,6 +355,8 @@ func _fixture(parent: Node, pos: Vector3, yaw: float, state := "", tilt := 0.0, 
 		light.distance_fade_begin = 36.0
 		light.distance_fade_shadow = 22.0
 		light.distance_fade_length = 8.0
+		# 깜빡이지 않는 조명은 간접광(VoxelGI)에 미리 구워 넣는다. 매 프레임 간접광을 다시 계산하지 않아 빠르다.
+		light.light_bake_mode = Light3D.BAKE_DYNAMIC if state == "flicker" else Light3D.BAKE_STATIC
 		parent.add_child(light)
 		if state == "flicker":
 			_flicker.append({"light": light, "fixture": f, "next": 0.0, "on": true})
@@ -372,7 +378,7 @@ func _build_props() -> void:
 	_place("fire_cabinet", Vector3(20.0, 0.45, 0.0), 0.0, g)
 	_place("fire_cabinet", Vector3(28.0, 0.45, D), PI, g)
 	_place("fire_cabinet", Vector3(0.0, 0.45, 6.5), PI / 2, g)
-	if east_tunnel:
+	if east_tunnel or east_helix:
 		_place("traffic_cone", Vector3(46.9, 0, 21.5), 0.3, g)
 		_place("traffic_cone", Vector3(46.4, 0, 26.6), -0.5, g)
 	if with_cup and west_opening:
@@ -400,7 +406,7 @@ func _build_signs() -> void:
 	_label(g, floor_name, Vector3(W - 0.02, 1.68, 11.0), -PI / 2, 0.0042, wall_paint, 256)
 	_label(g, floor_name, Vector3(0.02, 1.68, 17.6), PI / 2, 0.0042, wall_paint, 256)
 	_label(g, floor_name, Vector3(36.0, 1.68, 0.02), 0.0, 0.0042, wall_paint, 256)
-	if east_tunnel:
+	if east_tunnel or east_helix:
 		var sign := _place("hanging_sign", Vector3(W - 1.2, H - 0.45, RAMP_Z), PI / 2, g)
 		sign.name = "HangingSign"
 		hanging_sign_label = _label(g, sign_text, Vector3(W - 1.2 - 0.03, H - 0.45 - 0.32, RAMP_Z), -PI / 2, 0.0022, Color(0.95, 0.97, 0.95), 120)
