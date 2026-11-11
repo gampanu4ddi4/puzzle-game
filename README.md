@@ -40,7 +40,7 @@ Ubuntu 참고:
 ## 프롤로그 + 퍼즐 1-1 "끝없는 경사로"
 
 실행하면 메인 화면(새로 시작 · 설정 · 크레딧 · 게임 종료)이 뜨고, 뒤로 프롤로그 거리 장면이 보인다. "새로 시작"을 누르면 그 자리(건너편 인도)에서 바로 시작한다 (`levels/ch1_parking/p1_1.tscn`).
-설정은 `user://settings.cfg`에 저장된다 (Windows: `%APPDATA%\Godotpp_userdata\새솔센터`).
+설정은 `user://settings.cfg`에 저장된다 (Windows: `%APPDATA%\Godot\app_userdata\새솔센터`).
 연석을 넘고, 정산소 창문을 열어 주차권을 줍고, 셔터 밑을 웅크려 지나 B1을 거쳐 B2로 내려간다.
 B2에서는 서쪽 나선을 내려가면 다시 B2가 나오고, 내려온 동쪽 나선을 거슬러 올라가면 B3에 도착한다.
 
