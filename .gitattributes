@@ -1,0 +1,6 @@
+# Windows batch files must keep CRLF line endings
+*.bat text eol=crlf
+
+# Binary assets
+*.png binary
+*.glb binary

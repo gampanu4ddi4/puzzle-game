@@ -4,6 +4,9 @@
 export_presets.cfg
 /build/
 
+# Godot binary downloaded by tools\godot.bat
+/.tools/
+
 # Baked GI (regenerated automatically on first run)
 *_voxelgi.res
 
