@@ -22,8 +22,10 @@
 ##   되돌아 올라가면 B3"라는 1-1의 정답이 실제 공간으로 성립한다.
 ##
 ## 실행 인자 (테스트용):
-##   --test=down|downback|up|tour|hints|prologue   자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
-##   --start=prologue|b2                  시작 위치 (기본: 프롤로그. 테스트는 prologue 외에는 b2)
+##   --test=down|downback|up|tour|hints|prologue|menu|p12|p13   자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
+##   --start=prologue|b2|b3|b4            시작 위치 (기본: 프롤로그). b3 = 1-2 시작, b4 = 1-3 시작
+##
+## 1-2(관리실)와 1-3(일방통행)은 ch1b.gd가 맡는다. 관리실 문이 닫히면 이 파일이 만든 공간은 모두 감춰진다.
 ##   --out=<폴더>                         테스트 스크린샷 저장 위치
 ##   --hint-scale=<배수>                  힌트 시간을 빠르게 (예: 100)
 ##   --hold=<프레임>                      순간이동 직후 직전 화면을 덮을 프레임 수 (기본 0)
@@ -78,10 +80,13 @@ var _far: AudioStreamPlayer3D
 var _out_drip_next := 0.0
 var traces: Array[String] = []
 var menu: Menu
+var ch1b: Ch1B
+var stage_b := false            # 관리실 문 밖이 계단실로 바뀐 뒤 (이 파일의 공간은 감춰져 있다)
 
 # 테스트용 길 안내
 var _route: Array[Vector3] = []
 var _route_backward := false
+var _route_accept := 1.0         # 길 안내 점에 이만큼 가까워지면 다음 점으로 (좁은 곳에서는 줄인다)
 
 
 func _ready() -> void:
@@ -133,6 +138,11 @@ func _ready() -> void:
 	_build_gi()
 	_build_stain()
 	_build_audio()
+	# 1-2, 1-3 (자기 간접광은 따로 굽는다. 위의 간접광 굽기가 끝난 뒤에 만들어야 서로 섞이지 않는다)
+	ch1b = Ch1B.new()
+	ch1b.name = "Ch1B"
+	add_child(ch1b)
+	ch1b.build(self, b3)
 	LevelEnv.add_post_fx(self)
 	_build_debug()
 	_hold = FrameHold.new()
@@ -141,7 +151,7 @@ func _ready() -> void:
 	var test := LevelEnv.arg_value("--test")
 	var start := LevelEnv.arg_value("--start")
 	if start == "":
-		start = "prologue" if (test in ["", "prologue", "menu"]) else "b2"
+		start = "prologue" if (test in ["", "prologue", "menu"]) else ("b3" if test == "p12" else ("b4" if test == "p13" else "b2"))
 	# 메뉴: 그냥 실행하면 메인 화면부터. 뒤로는 시작 지점의 실제 장면이 돌아간다.
 	menu = Menu.new()
 	add_child(menu)
@@ -168,6 +178,7 @@ func _make_floor(node_name: String, origin: Vector3, label: String, west: bool, 
 	f.east_tunnel = tunnel
 	f.east_helix = helix
 	f.with_cup = cup
+	f.door_opening = node_name == "B3"      # 관리실 문 (1-2)
 	f.position = origin
 	f.rotation.y = yaw
 	add_child(f)
@@ -371,9 +382,17 @@ func _spawn_player(interactive: bool, start: String) -> void:
 		prologue_done = true
 		_barrier_lowered = true
 		_set_upper(true)
+		if start in ["b3", "b4"]:
+			# 1-1을 푼 직후: B3 입구 안쪽
+			player.position = b3.to_global(Vector3(5.0, 0.05, 22.0))
+			player.rotation.y = 0.0
+			solved = true
 	add_child(player)
 	gate_down.player = player
 	gate_landing.player = player
+	ch1b.set_player(player)
+	if start == "b4":
+		ch1b.skip_to_aisle()
 
 
 # ================================================================ 진행
@@ -460,23 +479,26 @@ func _process(delta: float) -> void:
 	# 메인 화면 뒤 장면: 시선이 아주 천천히 흔들린다
 	if menu and menu.is_open() and not menu.in_game and player:
 		player.rotation.y = PI + sin(Time.get_ticks_msec() / 1000.0 * 0.12) * 0.06
-	_update_prologue()
-	if not solved and prologue_done:
-		elapsed += delta * hint_scale * Settings.hint_scale()
-		while hint_stage < HINT_TIMES.size() and elapsed >= HINT_TIMES[hint_stage]:
-			hint_stage += 1
-			_apply_hint(hint_stage)
-	_update_sign_hint()
-	_update_drip()
-	_update_b3_shutter()
-	_update_floor_lights()
-	_check_solved()
+	if not stage_b:
+		_update_prologue()
+		if not solved and prologue_done:
+			elapsed += delta * hint_scale * Settings.hint_scale()
+			while hint_stage < HINT_TIMES.size() and elapsed >= HINT_TIMES[hint_stage]:
+				hint_stage += 1
+				_apply_hint(hint_stage)
+		_update_sign_hint()
+		_update_drip()
+		_update_b3_shutter()
+		_update_floor_lights()
+		_check_solved()
 	if Input.is_physical_key_pressed(KEY_F2) and not _f2_was:
 		_debug.visible = not _debug.visible
 	_f2_was = Input.is_physical_key_pressed(KEY_F2)
 	if _debug.visible and player:
 		var p := player.global_position
-		_debug.text = "1-1  loops:%d  hint:%d  t:%.0fs  solved:%s\npos: %.1f, %.1f, %.1f   fps:%d" % [loops, hint_stage, elapsed, solved, p.x, p.y, p.z, Engine.get_frames_per_second()]
+		_debug.text = "1-1  loops:%d  hint:%d  t:%.0fs  solved:%s\n1-2  swapped:%s  solved:%s  hint:%d    1-3  loops:%d  solved:%s  hint:%d\npos: %.1f, %.1f, %.1f   fps:%d" % [
+			loops, hint_stage, elapsed, solved, ch1b.swapped, ch1b.solved12, ch1b.hint12, ch1b.loops13, ch1b.solved13, ch1b.hint13,
+			p.x, p.y, p.z, Engine.get_frames_per_second()]
 
 
 func _physics_process(_delta: float) -> void:
@@ -586,7 +608,7 @@ func _follow_route() -> void:
 		return
 	var to := _route[0] - player.global_position
 	to.y = 0.0
-	if to.length() < 1.0:
+	if to.length() < _route_accept:
 		_route.remove_at(0)
 		if _route.is_empty():
 			player.set("auto_move", Vector3.ZERO)
@@ -642,6 +664,8 @@ func _run_test(kind: String) -> void:
 			await _test_prologue(out)
 		"menu":
 			await _test_menu(out)
+		"p12", "p13":
+			await ch1b.run_test(kind, out)
 		"hints":
 			await _test_hints(out)
 	get_tree().quit()

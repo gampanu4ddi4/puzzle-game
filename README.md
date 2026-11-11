@@ -45,8 +45,8 @@ Ubuntu 참고:
 B2에서는 서쪽 나선을 내려가면 다시 B2가 나오고, 내려온 동쪽 나선을 거슬러 올라가면 B3에 도착한다.
 
 - 조작: WASD 걷기, 마우스 둘러보기, Space 점프, Ctrl 웅크리기, E 상호작용, Shift 천천히, Esc 일시정지, F2 디버그 표시
-- B2에서 바로 시작: `godot --path . -- --start=b2`
-- 자동 테스트: `godot --path . res://levels/ch1_parking/p1_1.tscn -- --test=prologue|menu|down|downback|up|tour|hints --out=<폴더>`
+- B2에서 바로 시작: `godot --path . -- --start=b2` (1-2 시작은 `--start=b3`, 1-3 시작은 `--start=b4`)
+- 자동 테스트: `godot --path . res://levels/ch1_parking/p1_1.tscn -- --test=prologue|menu|down|downback|up|tour|hints|p12|p13 --out=<폴더>`
   - `prologue`: 프롤로그를 처음부터 B2까지 자동으로 걷는다
   - `menu`: 메인 화면, 설정, 크레딧, 일시정지 화면을 찍고 설정이 적용되는지 확인한다
   - `down`, `downback`: 자동으로 걸어 관문을 지나게 하고, 순간이동 직전·직후 화면의 차이를 출력한다

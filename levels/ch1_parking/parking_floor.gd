@@ -33,6 +33,7 @@ var west_opening := true        # 서쪽 벽에 아래층 경사로 입구를 �
 var east_tunnel := true         # 위층으로 가는 직선 경사로 터널을 만든다
 var east_helix := false         # 동쪽 입구만 뚫는다 (나선은 HelixRamp가 만든다)
 var with_cup := true           # 앵커: 서쪽 경사로 입구의 쓰러진 커피컵
+var door_opening := false       # 서쪽 벽의 문 자리를 실제로 뚫는다 (문은 바깥에서 따로 단다. 1-2의 관리실)
 var collisions := true
 
 # ---- 만든 뒤 바깥에서 쓰는 것
@@ -239,7 +240,15 @@ func _build_shell() -> void:
 	_box(g, Vector3(W + 0.6, H, 0.3), Vector3(W / 2, H / 2, D + 0.15), wall)                # 남
 	var r0 := RAMP_Z - RAMP_HALF
 	var r1 := RAMP_Z + RAMP_HALF
-	if west_opening:
+	if west_opening and door_opening:
+		# 문 구멍: 폭 1.1 m, 높이 2.15 m
+		var d0 := DOOR_Z - 0.55
+		var d1 := DOOR_Z + 0.55
+		_box(g, Vector3(0.3, H, d0), Vector3(-0.15, H / 2, d0 / 2), wall)
+		_box(g, Vector3(0.3, H, r0 - d1), Vector3(-0.15, H / 2, (d1 + r0) / 2), wall)
+		_box(g, Vector3(0.3, H - 2.15, 1.1), Vector3(-0.15, (H + 2.15) / 2, DOOR_Z), wall)
+		_box(g, Vector3(0.3, H, D - r1), Vector3(-0.15, H / 2, (r1 + D) / 2), wall)
+	elif west_opening:
 		_box(g, Vector3(0.3, H, r0), Vector3(-0.15, H / 2, r0 / 2), wall)                  # 서 (입구 북쪽)
 		_box(g, Vector3(0.3, H, D - r1), Vector3(-0.15, H / 2, (r1 + D) / 2), wall)        # 서 (입구 남쪽)
 	else:
@@ -387,14 +396,15 @@ func _fixture(parent: Node, pos: Vector3, yaw: float, state := "", tilt := 0.0, 
 
 func _build_props() -> void:
 	var g := _group("Props")
-	_place("steel_door", Vector3(0.0, 0, DOOR_Z), PI / 2, g)
-	_place("exit_sign", Vector3(0.0, 2.35, DOOR_Z), PI / 2, g)
-	var green := OmniLight3D.new()
-	green.position = Vector3(0.25, 2.3, DOOR_Z)
-	green.light_color = Color("3BD07A")
-	green.light_energy = 0.5
-	green.omni_range = 3.0
-	g.add_child(green)
+	if not door_opening:
+		_place("steel_door", Vector3(0.0, 0, DOOR_Z), PI / 2, g)
+		_place("exit_sign", Vector3(0.0, 2.35, DOOR_Z), PI / 2, g)
+		var green := OmniLight3D.new()
+		green.position = Vector3(0.25, 2.3, DOOR_Z)
+		green.light_color = Color("3BD07A")
+		green.light_energy = 0.5
+		green.omni_range = 3.0
+		g.add_child(green)
 	_place("fire_cabinet", Vector3(20.0, 0.45, 0.0), 0.0, g)
 	_place("fire_cabinet", Vector3(28.0, 0.45, D), PI, g)
 	_place("fire_cabinet", Vector3(0.0, 0.45, 6.5), PI / 2, g)

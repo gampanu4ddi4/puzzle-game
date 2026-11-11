@@ -175,6 +175,78 @@ static func clank() -> AudioStreamWAV:
 	return _wav(s)
 
 
+## 문 여는 소리: 걸쇠 딸깍 + 경첩 끼익.
+static func door_open() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 51
+	var n := int(RATE * 0.6)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var latch := (sin(TAU * 1800.0 * t) * 0.5 + rng.randf_range(-1.0, 1.0) * 0.5) * exp(-t * 90.0)
+		var tc := maxf(t - 0.08, 0.0)
+		phase += TAU * (380.0 + 220.0 * tc) / RATE
+		var creak := sin(phase) * sin(TAU * 31.0 * tc) * smoothstep(0.08, 0.15, t) * (1.0 - smoothstep(0.35, 0.55, t)) * 0.12
+		s[i] = (latch * 0.7 + creak) * 0.7
+	return _wav(s)
+
+
+## 문 닫히는 소리: 묵직한 쿵 + 걸쇠.
+static func door_close() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 52
+	var n := int(RATE * 0.7)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var thud := sin(TAU * 70.0 * t) * exp(-t * 14.0) * 0.9 + sin(TAU * 190.0 * t) * exp(-t * 30.0) * 0.4
+		var slam := rng.randf_range(-1.0, 1.0) * exp(-t * 55.0) * 0.5
+		var tc := t - 0.09
+		var latch := 0.0
+		if tc > 0.0:
+			latch = sin(TAU * 2100.0 * tc) * exp(-tc * 110.0) * 0.3
+		s[i] = (thud + slam + latch) * 0.6
+	return _wav(s)
+
+
+## 잠긴 문을 흔드는 소리.
+static func door_rattle() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 53
+	var n := int(RATE * 0.4)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var v := 0.0
+		for k in 3:
+			var tk := t - 0.09 * k
+			if tk > 0.0:
+				v += (sin(TAU * (900.0 + 250.0 * k) * tk) * 0.5 + rng.randf_range(-1.0, 1.0) * 0.5) * exp(-tk * 70.0)
+		s[i] = v * 0.45
+	return _wav(s)
+
+
+## 계단실에서 울리는 낮은 바람 소리 (3초 반복).
+static func stair_wind() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 54
+	var n := RATE * 3
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.03
+		lp2 += (lp - lp2) * 0.06
+		s[i] = lp2 * 5.0 * (0.6 + 0.4 * sin(TAU * t / 3.0))
+	return _wav(s, true)
+
+
 ## 작은 딸깍 소리 (표지판이 바뀔 때 등).
 static func click() -> AudioStreamWAV:
 	var n := int(RATE * 0.06)
