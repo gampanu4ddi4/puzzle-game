@@ -82,6 +82,24 @@ static func tunnel_point(x: float) -> Vector3:
 	return Vector3(W + x, x * RAMP_RISE / RAMP_LEN, RAMP_Z)
 
 
+## 층을 위아래로 겹쳐 놓을 때 쓴다: 이 층의 보이는 것을 렌더 레이어 bit에 두고, 이 층의 조명과 데칼은
+## 그 레이어만 비추게 한다. 그러면 위층 조명이 바닥 판을 뚫고 아래층을 비추지 않는다 (그 반대도).
+func set_render_layer(bit: int) -> void:
+	for n in find_children("*", "", true, false):
+		if n is Light3D:
+			(n as Light3D).light_cull_mask = bit
+		elif n is Decal:
+			(n as Decal).cull_mask = bit
+			(n as Decal).layers = bit
+		elif n is VisualInstance3D:
+			(n as VisualInstance3D).layers = bit
+
+
+## 이 층의 조명들 (켜고 끄기용)
+func lights() -> Array[Node]:
+	return find_children("*", "Light3D", true, false)
+
+
 ## 이 위치에 있는 형광등을 깜빡이게 만든다 (힌트 연출용).
 func make_fixture_flicker(local_pos: Vector3) -> void:
 	var key := _key(local_pos)

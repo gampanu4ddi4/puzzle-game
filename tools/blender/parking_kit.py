@@ -301,14 +301,14 @@ def _arc_right(cx, cz, r, t0, t1, y, n, out_sign):
 def helix_path(variant):
     """나선 경사로 중심선 (Godot 좌표, 조각 원점 기준).
     공통: 아래 진입로 (0,0,0)→(13,0,0), 나선 0→270도 (중심 (13, *, 9)), 끝점 (4, 3, 9), 진행 방향 -Z.
-    east: 끝에서 -Z로 38 m 곧게 → (4, 3, -29). 위층(B3, 90도 돌려 놓음) 입구에 닿는다.
+    east: 끝에서 -Z로 13 m 곧게 → (4, 3, -4). 아래층 바로 위에 겹쳐 놓은 위층(B3, 90도 돌림) 입구에 닿는다.
     west: 끝에서 -Z로 17 m → 오른쪽으로 90도 꺾어 (반지름 6) +X 방향으로 (10, 3, -14). B2 서쪽 입구에 닿는다.
     """
     path = [(0.0, 0.0, 0.0, 0.0, -1.0)]
     path += _arc(HX_STUB, HX_R, HX_R, 0.0, HX_TURN, 0.0, HX_RISE, 72)
     ex, ez = HX_STUB - HX_R, HX_R            # (4, 9)
     if variant == "east":
-        path.append((ex, HX_RISE, ez - 38.0, -1.0, 0.0))
+        path.append((ex, HX_RISE, ez - 13.0, -1.0, 0.0))
     else:
         path.append((ex, HX_RISE, ez - 17.0, -1.0, 0.0))   # (4, 3, -8)
         # 중심 (10, -8), 반지름 6: t=0 → (4, -8) 진행 -Z, t=90도 → (10, -14) 진행 +X. 바깥쪽은 원의 바깥 = (-cos t, -sin t)

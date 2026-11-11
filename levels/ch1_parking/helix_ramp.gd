@@ -3,7 +3,7 @@
 ## 조각 원점 = 아래 진입로 시작점 (아래층 동쪽 벽 입구 가운데 바닥). 조각 좌표:
 ##   아래 진입로  (0,0,0) → (13,0,0), +X 방향
 ##   나선        중심 (13, *, 9), 반지름 9, 0 → 270도, 끝점 (4, 3, 9)에서 -Z 방향
-##   출구 east   (4,3,9) → (4,3,-29) 곧게. 90도 돌려 놓은 위층의 서쪽 입구에 닿는다.
+##   출구 east   (4,3,9) → (4,3,-4) 곧게 13 m. 아래층 바로 위에 겹쳐 놓은 위층(90도 돌림)의 서쪽 입구에 닿는다.
 ##   출구 west   (4,3,9) → (4,3,-8) → 오른쪽으로 90도 꺾어 (10,3,-14)에서 +X 방향. 위층(B2) 서쪽 입구에 닿는다.
 ##
 ## 나선 가운데(135도)에서는 안쪽 벽(반지름 6) 때문에 양쪽으로 120도까지만 보이므로, 양 끝(0도, 270도)이
@@ -23,13 +23,18 @@ const EAST_OFFSET := Vector3(W, 0.0, RAMP_Z)
 const WEST_OFFSET := Vector3(-10.0, -RISE, RAMP_Z + 14.0)
 ## 위층은 90도 돌려 놓는다 (위층의 +X = 월드 -Z)
 const UPPER_ROT_Y := PI / 2.0
+## 동쪽 조각 출구 끝 (조각 좌표 z)
+const EAST_EXIT_Z := -4.0
+## 위층을 1 cm 띄운다. 아래층 천장 판과 위층 바닥 판이 같은 높이에 겹치면 면이 깜빡이기 때문이다.
+const UPPER_LIFT := 0.01
 
 var variant := "east"
 
 
-## 층 원점 기준 위층의 원점: 동쪽 조각 출구 (4, 3, -29)가 위층 서쪽 입구 (0, 0, 24)와 맞는다.
+## 층 원점 기준 위층의 원점: 동쪽 조각 출구 끝이 위층 서쪽 입구 (0, 0, 24)와 맞는다.
+## 위층은 아래층 북동쪽 위에 겹쳐 놓인다 (아래층 천장 = 위층 바닥).
 static func upper_origin() -> Vector3:
-	var entrance := EAST_OFFSET + Vector3(4.0, RISE, -29.0)
+	var entrance := EAST_OFFSET + Vector3(4.0, RISE + UPPER_LIFT, EAST_EXIT_Z)
 	return entrance - Basis(Vector3.UP, UPPER_ROT_Y) * Vector3(0.0, 0.0, RAMP_Z)
 
 
@@ -55,8 +60,7 @@ static func route_down(v: String) -> Array[Vector3]:
 			var t := PI / 2.0 * i / 8.0
 			pts.append(Vector3(10.0 - 6.0 * cos(t), RISE, -8.0 - 6.0 * sin(t)))
 	else:
-		pts.append(Vector3(4.0, RISE, -28.0))
-		pts.append(Vector3(4.0, RISE, -10.0))
+		pts.append(Vector3(4.0, RISE, EAST_EXIT_Z + 0.5))
 	for i in range(27, -1, -1):
 		pts.append(point(TURN * i / 27.0))
 	pts.append(Vector3(6.0, 0.0, 0.0))
@@ -82,15 +86,13 @@ func build_ramp(world_origin: Vector3, v: String) -> void:
 		g.add_child(tilt)
 		_place_arrow(tilt, Vector3.ZERO, 0.0)
 	_place_arrow(g, Vector3(6.5, 0.005, 0.0), PI)
-	_place_arrow(g, Vector3(4.0, RISE + 0.005, -3.0), -PI / 2)
+	_place_arrow(g, Vector3(4.0, RISE + 0.005, 1.0), -PI / 2)
 	# 조명: 나선을 따라 45도마다 (두 조각이 똑같은 배치), 진입로와 출구에 하나씩
 	for i in 6:
 		var phi := deg_to_rad(22.5 + 45.0 * i)
 		_fixture(g, point(phi) + Vector3(0, H, 0), -phi, "off" if i == 4 else "on", s, false)
 	_fixture(g, Vector3(6.5, H, 0.0), 0.0, "on", 0.0, false)
 	if v == "east":
-		_place_arrow(g, Vector3(4.0, RISE + 0.005, -18.0), -PI / 2)
-		_fixture(g, Vector3(4.0, RISE + H, -14.0), PI / 2, "on", 0.0, false)
-		_fixture(g, Vector3(4.0, RISE + H, -25.0), PI / 2, "flicker", 0.0, false)
+		_fixture(g, Vector3(4.0, RISE + H, 0.5), PI / 2, "flicker", 0.0, false)
 	else:
 		_fixture(g, Vector3(6.0, RISE + H, -12.0), PI / 4, "on", 0.0, false)

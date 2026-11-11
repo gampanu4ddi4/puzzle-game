@@ -6,7 +6,8 @@
 ##   B2      : 플레이어가 돌아다니는 층. 동쪽에 위로 가는 나선, 서쪽에 아래로 가는 나선 입구가 있다.
 ##   동쪽 나선: 실제로 B3로 이어진다. 올라가는 쪽에는 순간이동이 없다.
 ##   서쪽 나선: B2 서쪽 입구에서 아래로 내려가는 나선. 아래층은 만들지 않는다 (보이지 않는다).
-##   B3      : 동쪽 나선 출구에 닿는 진짜 위층 (90도 돌려 놓음).
+##   B3      : 동쪽 나선 출구(13 m 통로)에 닿는 진짜 위층. B2 북동쪽 바로 위에 겹쳐 놓았다 (B2 천장 = B3 바닥).
+##             겹친 층끼리 조명이 새지 않도록 B3는 렌더 레이어 2를 쓰고, 플레이어가 없는 층의 조명은 끈다.
 ##
 ## 관문 하나:
 ##   서쪽 나선 가운데(135도)를 내려가며 지나면 → 동쪽 나선 가운데로 옮겨진다 → 계속 내려가면 다시 B2.
@@ -81,6 +82,7 @@ func _ready() -> void:
 
 	b2 = _make_floor("B2", Vector3.ZERO, "B2", true, true, true, "출구  ↑ B1")
 	b3 = _make_floor("B3", HelixRamp.upper_origin(), "B3", true, false, false, "", HelixRamp.UPPER_ROT_Y)
+	b3.set_render_layer(2)
 	east_helix = _make_helix("EastHelix", EAST, "east")
 	west_helix = _make_helix("WestHelix", WEST, "west")
 	# 서쪽 나선의 아래쪽 끝은 아무 데도 이어지지 않으니 막는다 (가운데에서는 보이지 않는다)
@@ -149,7 +151,7 @@ func _cap(origin: Vector3, center: Vector3, size: Vector3) -> void:
 
 ## B3 입구(동쪽 나선 출구 끝)의 방화셔터. 처음에는 숨겨 둔다.
 func _build_shutter() -> void:
-	var at := EAST + Vector3(4.0, HelixRamp.RISE, -27.0)
+	var at := EAST + Vector3(4.0, HelixRamp.RISE, HelixRamp.EAST_EXIT_Z + 1.5)
 	_b3_shutter = (load(ParkingFloor.KIT + "fire_shutter.glb") as PackedScene).instantiate()
 	_b3_shutter.position = at
 	_b3_shutter.rotation.y = PI / 2
@@ -193,7 +195,7 @@ func _build_gi() -> void:
 	# 화면 없이(headless) 실행하면 제대로 구울 수 없으므로 아무것도 하지 않는다
 	if DisplayServer.get_name() == "headless":
 		return
-	_gi_group([b2, b3], Vector3(24.0, 1.5, 16.0), Vector3(48.6, 3.6, 32.6), GI_FLOOR_PATH, 1.2)
+	_gi_group([b2, b3], Vector3(24.0, 1.3, 16.0), Vector3(48.6, 3.2, 32.6), GI_FLOOR_PATH, 1.2)
 	# 나선은 좁고 벽이 밝아서 간접광이 과하게 쌓인다. 층보다 약하게 한다
 	_gi_group([east_helix, west_helix], Vector3(13.0, 3.0, 9.0), Vector3(26.0, 7.0, 26.0), GI_HELIX_PATH, 0.55)
 
@@ -210,6 +212,7 @@ func _gi_group(nodes: Array, center: Vector3, size: Vector3, path: String, energ
 		v.subdiv = VoxelGI.SUBDIV_128
 		v.size = size
 		v.position = center
+		v.layers = 1 | 2
 		n.add_child(v)
 	if data == null:
 		var t := Time.get_ticks_msec()
@@ -309,6 +312,7 @@ func _process(delta: float) -> void:
 	_update_sign_hint()
 	_update_drip()
 	_update_b3_shutter()
+	_update_floor_lights()
 	_check_solved()
 	if Input.is_physical_key_pressed(KEY_F2) and not _f2_was:
 		_debug.visible = not _debug.visible
@@ -381,6 +385,29 @@ func _update_b3_shutter() -> void:
 	_sfx.stream = ProcAudio.shutter()
 	_sfx.play()
 	print("B3 shutter closed")
+
+
+## 겹쳐 놓은 두 층 중 플레이어가 없는 층의 조명을 끈다.
+## 레이어를 나눠도 볼류메트릭 안개는 그림자가 꺼지는 먼 거리에서 바닥 판을 넘어 빛을 받기 때문이다. 성능에도 이롭다.
+## B3는 동쪽 나선 위쪽(높이 1.2 m 이상)이나 B3에 있을 때만 켜고, B2는 B3 안쪽 깊이 들어가면 끈다.
+var _b3_lights_on := true
+var _b2_lights_on := true
+
+
+func _update_floor_lights() -> void:
+	if player == null:
+		return
+	var p := player.global_position
+	var b3_on := p.y > 1.2
+	var b2_on := b3.to_local(p).x < 10.0 or p.y < 1.2
+	if b3_on != _b3_lights_on:
+		_b3_lights_on = b3_on
+		for l in b3.lights():
+			(l as Light3D).visible = b3_on
+	if b2_on != _b2_lights_on:
+		_b2_lights_on = b2_on
+		for l in b2.lights():
+			(l as Light3D).visible = b2_on
 
 
 func _check_solved() -> void:
@@ -524,7 +551,9 @@ func _tour_list() -> Array:
 		["t2_east_entrance", Vector3(40.0, 1.6, 23.0), Vector3(W + 6.0, 1.5, 24.0)],
 		["t3_helix_gate_down", gate, gate + down + Vector3(0, -0.4, 0)],
 		["t4_helix_gate_up", gate, gate - down + Vector3(0, 0.4, 0)],
-		["t5_east_exit", EAST + Vector3(4.0, 4.6, -6.0), EAST + Vector3(4.0, 4.4, -29.0)],
+		["t5_east_exit", EAST + Vector3(4.0, 4.6, 8.0), EAST + Vector3(4.0, 4.4, -6.0)],
+		["t8_b3_from_entrance", b3.to_global(Vector3(2.0, 1.6, 24.0)), b3.to_global(Vector3(20.0, 1.2, 10.0))],
+		["t9_b2_ceiling_under_b3", Vector3(36.0, 1.6, 12.0), Vector3(30.0, 2.6, 4.0)],
 		["t6_b3_floor", b3.to_global(Vector3(4.0, 1.6, 24.0)), b3.to_global(Vector3(40.0, 1.2, 20.0))],
 		["t7_west_exit_from_b2", Vector3(3.0, 1.6, 24.0), Vector3(-6.0, 1.2, 30.0)],
 	]
