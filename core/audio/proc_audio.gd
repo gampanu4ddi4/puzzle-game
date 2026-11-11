@@ -100,6 +100,62 @@ static func shutter() -> AudioStreamWAV:
 	return _wav(s)
 
 
+## 차단기 팔이 내려오는 소리: 모터 소리 + 멈출 때 덜컥.
+static func barrier() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var n := int(RATE * 1.9)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var run := smoothstep(0.0, 0.15, t) * (1.0 - smoothstep(1.35, 1.45, t))
+		phase += TAU * (95.0 + 25.0 * t) / RATE
+		var motor := (fmod(phase / TAU, 1.0) * 2.0 - 1.0) * 0.25 + sin(phase * 3.0) * 0.1
+		var thud := 0.0
+		if t > 1.42:
+			var tc := t - 1.42
+			thud = sin(TAU * 140.0 * tc) * exp(-tc * 25.0) * 0.8 + rng.randf_range(-1.0, 1.0) * exp(-tc * 60.0) * 0.4
+		s[i] = (motor * run + thud) * 0.6
+	return _wav(s)
+
+
+## 종이를 집는 소리.
+static func paper() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var n := int(RATE * 0.35)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var prev := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var noise := rng.randf_range(-1.0, 1.0)
+		var hp := noise - prev   # 높은 소리만 남긴다
+		prev = noise
+		var env := (sin(t * 38.0) * 0.5 + 0.5) * exp(-t * 7.0) * minf(1.0, t * 200.0)
+		s[i] = hp * env * 0.25
+	return _wav(s)
+
+
+## 바깥 밤거리: 멀리서 들리는 도시의 낮은 웅웅거림 (4초 반복).
+static func city() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 33
+	var n := RATE * 4
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.02
+		lp2 += (lp - lp2) * 0.05
+		s[i] = (lp2 * 6.0 + sin(TAU * 55.0 * t) * 0.03) * (0.8 + 0.2 * sin(TAU * 0.25 * t))
+	return _wav(s, true)
+
+
 ## 작은 딸깍 소리 (표지판이 바뀔 때 등).
 static func click() -> AudioStreamWAV:
 	var n := int(RATE * 0.06)

@@ -27,6 +27,7 @@ uniform float puddle_amount = 0.0;           // 0~1, 바닥 물웅덩이 양
 uniform float floor_level = 0.0;
 uniform float floor_slope = 0.0;             // 경사로: X가 slope_start_x를 넘으면 바닥 높이가 이만큼씩 오른다
 uniform float slope_start_x = 0.0;
+uniform vec3 slope_dir = vec3(1.0, 0.0, 0.0);    // 경사로가 올라가는 방향 (돌려 놓은 층이면 함께 돈다)
 
 uniform float joint_spacing = 0.0;           // 바닥 줄눈 간격(m). 0이면 없음
 uniform float joint_width = 0.012;
@@ -84,7 +85,7 @@ void fragment() {
 	alb *= tint * (1.0 + (macro.r - 0.5) * 2.0 * macro_variation);
 
 	// 칠한 띠
-	float h = w_pos.y - floor_level - max(w_pos.x - slope_start_x, 0.0) * floor_slope;
+	float h = w_pos.y - floor_level - max(dot(w_pos, slope_dir) - slope_start_x, 0.0) * floor_slope;
 	if (band_height > 0.0) {
 		float lum = dot(alb, vec3(0.333));
 		float in_band = 1.0 - step(band_height, h);

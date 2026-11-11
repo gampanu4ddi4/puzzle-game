@@ -1,20 +1,31 @@
 ## 1인칭 플레이어.
-## WASD 걷기, Shift 천천히, Ctrl 웅크리기, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷.
+## WASD 걷기, Shift 천천히, Ctrl 웅크리기, Space 점프, E 상호작용, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷.
 extends CharacterBody3D
 
 @export var walk_speed := 3.2
 @export var slow_speed := 1.6
+@export var crouch_speed := 1.6
+@export var jump_velocity := 4.2       # 약 0.9 m 높이까지
 @export var mouse_sensitivity := 0.0022
 @export var eye_height := 1.6
 @export var crouch_eye_height := 1.0
-@export var step_length := 1.7   # 발소리 간격(m). 실제 보폭보다 길게 잡아 덜 거슬리게 한다
+@export var reach := 2.0               # 상호작용 거리
+@export var step_length := 1.7         # 발소리 간격(m). 실제 보폭보다 길게 잡아 덜 거슬리게 한다
 @export var sfx_bus := "Master"
+
+const STAND_HEIGHT := 1.75
+const CROUCH_HEIGHT := 1.0
 
 ## 테스트용: 0이 아니면 키 입력 대신 이 방향(로컬, -Z가 앞)으로 걷는다
 var auto_move := Vector3.ZERO
+var auto_crouch := false
 var input_enabled := true
+## 바깥(레벨)에서 걷는 속도에 곱한다 (예: 경계 근처에서 느려지기)
+var speed_scale := 1.0
 
 var camera: Camera3D
+var crouching := false
+var hovered: Interactable = null
 
 var _pitch := 0.0
 var _bob := 0.0
@@ -22,16 +33,20 @@ var _step_dist := 0.0
 var _steps: Array[AudioStreamWAV] = []
 var _step_player: AudioStreamPlayer
 var _rng := RandomNumberGenerator.new()
+var _shape: CollisionShape3D
+var _capsule: CapsuleShape3D
+var _jump_requested := false
+var _dot: ColorRect
 
 
 func _ready() -> void:
-	var shape := CollisionShape3D.new()
-	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.3
-	capsule.height = 1.75
-	shape.shape = capsule
-	shape.position.y = 0.875
-	add_child(shape)
+	_shape = CollisionShape3D.new()
+	_capsule = CapsuleShape3D.new()
+	_capsule.radius = 0.3
+	_capsule.height = STAND_HEIGHT
+	_shape.shape = _capsule
+	_shape.position.y = STAND_HEIGHT / 2.0
+	add_child(_shape)
 	floor_max_angle = deg_to_rad(20.0)
 	floor_snap_length = 0.3
 
@@ -49,6 +64,19 @@ func _ready() -> void:
 	_step_player.volume_db = -14.0
 	add_child(_step_player)
 
+	# 상호작용할 수 있는 것을 가리키면 화면 가운데에 작은 점이 나온다 (GDD 10장)
+	var layer := CanvasLayer.new()
+	layer.layer = 15
+	_dot = ColorRect.new()
+	_dot.color = Color(1, 1, 1, 0.75)
+	_dot.size = Vector2(6, 6)
+	_dot.set_anchors_preset(Control.PRESET_CENTER)
+	_dot.position -= Vector2(3, 3)
+	_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dot.visible = false
+	layer.add_child(_dot)
+	add_child(layer)
+
 	if input_enabled:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -56,6 +84,20 @@ func _ready() -> void:
 func set_look(pitch: float) -> void:
 	_pitch = pitch
 	camera.rotation.x = pitch
+
+
+## 테스트용: 다음 물리 프레임에 점프
+func request_jump() -> void:
+	_jump_requested = true
+
+
+## 지금 가리키는 것과 상호작용한다. 성공하면 true.
+func try_interact() -> bool:
+	_update_hover()
+	if hovered != null:
+		hovered.interact()
+		return true
+	return false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -72,6 +114,10 @@ func _unhandled_input(event: InputEvent) -> void:
 				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			KEY_F12:
 				_save_screenshot()
+			KEY_E:
+				try_interact()
+			KEY_SPACE:
+				_jump_requested = true
 
 
 func _physics_process(delta: float) -> void:
@@ -81,15 +127,23 @@ func _physics_process(delta: float) -> void:
 		if Input.is_physical_key_pressed(KEY_S): input.z += 1.0
 		if Input.is_physical_key_pressed(KEY_A): input.x -= 1.0
 		if Input.is_physical_key_pressed(KEY_D): input.x += 1.0
+
+	_update_crouch(auto_crouch or (input_enabled and Input.is_physical_key_pressed(KEY_CTRL)))
+
 	var dir := (transform.basis * input).normalized()
 	var slow := input_enabled and Input.is_physical_key_pressed(KEY_SHIFT)
-	var speed := slow_speed if slow else walk_speed
+	var speed := crouch_speed if crouching else (slow_speed if slow else walk_speed)
+	speed *= speed_scale
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
 	if is_on_floor():
-		velocity.y = -0.5
+		if _jump_requested and not crouching:
+			velocity.y = jump_velocity
+		elif velocity.y <= 0.0:
+			velocity.y = -0.5
 	else:
 		velocity.y -= 9.8 * delta
+	_jump_requested = false
 	var before := global_position
 	move_and_slide()
 
@@ -99,17 +153,44 @@ func _physics_process(delta: float) -> void:
 		_step_dist += moved
 		if _step_dist >= step_length:
 			_step_dist = 0.0
-			_play_step(slow)
+			_play_step(slow or crouching)
 
-	var crouch := input_enabled and Input.is_physical_key_pressed(KEY_CTRL)
-	var target := crouch_eye_height if crouch else eye_height
+	var target := crouch_eye_height if crouching else eye_height
 	camera.position.y = lerpf(camera.position.y, target + sin(_bob) * 0.018, 10.0 * delta)
+	_update_hover()
 
 
-func _play_step(slow: bool) -> void:
+## 웅크리면 몸 높이도 줄어서 낮은 곳을 지나갈 수 있다. 머리 위가 막혀 있으면 일어서지 않는다.
+func _update_crouch(want: bool) -> void:
+	if want == crouching:
+		return
+	if not want:
+		var stand_up := Vector3(0, STAND_HEIGHT - CROUCH_HEIGHT, 0)
+		if test_move(global_transform, stand_up):
+			return
+	crouching = want
+	_capsule.height = CROUCH_HEIGHT if crouching else STAND_HEIGHT
+	_shape.position.y = _capsule.height / 2.0
+
+
+func _update_hover() -> void:
+	hovered = null
+	if camera == null:
+		return
+	var from := camera.global_position
+	var to := from - camera.global_transform.basis.z * reach
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and hit["collider"] is Interactable and (hit["collider"] as Interactable).can_interact():
+		hovered = hit["collider"]
+	_dot.visible = hovered != null
+
+
+func _play_step(quiet: bool) -> void:
 	_step_player.stream = _steps[_rng.randi() % _steps.size()]
 	_step_player.pitch_scale = _rng.randf_range(0.92, 1.08)
-	_step_player.volume_db = -20.0 if slow else -14.0
+	_step_player.volume_db = -20.0 if quiet else -14.0
 	_step_player.play()
 
 

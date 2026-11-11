@@ -79,6 +79,29 @@ static func for_floor(origin: Vector3) -> Dictionary:
 	return m
 
 
+## 바깥 재질: 비 그친 아스팔트와 건물 외벽. (바깥은 한 곳뿐이라 원점 0 기준)
+static func outdoor() -> Dictionary:
+	var key := "outdoor"
+	if _by_origin.has(key):
+		return _by_origin[key]
+	var m := {}
+	var asphalt := _concrete("floor", 3.0, Vector3.ZERO)
+	asphalt.set_shader_parameter("tint", Color(0.42, 0.43, 0.45))
+	asphalt.set_shader_parameter("puddle_amount", 0.38)
+	asphalt.set_shader_parameter("macro_variation", 0.2)
+	m["asphalt"] = asphalt
+	var curb := _concrete("wall", 2.0, Vector3.ZERO)
+	curb.set_shader_parameter("tint", Color(0.72, 0.72, 0.7))
+	m["curb"] = curb
+	var facade := _concrete("wall", 2.0, Vector3.ZERO)
+	facade.set_shader_parameter("tint", Color(0.55, 0.56, 0.55))
+	facade.set_shader_parameter("streak_strength", 0.45)
+	facade.set_shader_parameter("grime_strength", 0.5)
+	m["facade"] = facade
+	_by_origin[key] = m
+	return m
+
+
 ## 위치와 상관없는 재질 (형광관, 표지판 판).
 static func shared() -> Dictionary:
 	if not _shared.is_empty():

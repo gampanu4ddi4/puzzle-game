@@ -57,6 +57,8 @@ func build(world_origin: Vector3) -> void:
 	_font.font_weight = 700
 	if east_helix:
 		east_tunnel = false
+	# 돌려 놓은 층이면 경사로 벽 띠도 같은 방향으로 계산하게 한다
+	(_mats["ramp_wall"] as ShaderMaterial).set_shader_parameter("slope_dir", global_transform.basis * Vector3.RIGHT)
 	_build_shell()
 	_build_structure()
 	if east_tunnel:

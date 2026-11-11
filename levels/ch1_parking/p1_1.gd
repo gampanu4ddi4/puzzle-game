@@ -16,8 +16,14 @@
 ##
 ## B3 바닥에 들어선 뒤, 플레이어가 보지 않는 사이 B3 입구에 방화셔터가 내려온다 (1-2 도입).
 ##
+## 프롤로그 (prologue.gd): 지상 입구 → 정산소 → 경사로 → B1 → 동쪽 나선을 내려가 B2.
+##   B1과 B3는 같은 자리(B2 위층)에 겹쳐 만든 두 벌이다. 프롤로그 동안에는 B1이 보이고,
+##   플레이어가 B2에 들어서면 (위층은 보이지 않으므로) 그 자리를 B3로 바꾼다. 그래서 "내려온 길로
+##   되돌아 올라가면 B3"라는 1-1의 정답이 실제 공간으로 성립한다.
+##
 ## 실행 인자 (테스트용):
-##   --test=down|downback|up|tour|hints   자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
+##   --test=down|downback|up|tour|hints|prologue   자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
+##   --start=prologue|b2                  시작 위치 (기본: 프롤로그. 테스트는 prologue 외에는 b2)
 ##   --out=<폴더>                         테스트 스크린샷 저장 위치
 ##   --hint-scale=<배수>                  힌트 시간을 빠르게 (예: 100)
 ##   --hold=<프레임>                      순간이동 직후 직전 화면을 덮을 프레임 수 (기본 0)
@@ -38,7 +44,10 @@ const SPAWN := Vector3(44.0, 0.05, 24.0)
 
 var player: CharacterBody3D
 var b2: ParkingFloor
-var b3: ParkingFloor
+var b1: ParkingFloor            # 프롤로그 동안의 위층
+var b3: ParkingFloor            # 프롤로그가 끝난 뒤의 위층 (같은 자리)
+var prologue: Prologue
+var prologue_done := false
 var east_helix: HelixRamp
 var west_helix: HelixRamp
 var gate_down: LoopGate          # 서쪽 나선 가운데
@@ -63,6 +72,11 @@ var _hold: FrameHold
 var _hold_frames := 0
 var _f2_was := false
 var _rng := RandomNumberGenerator.new()
+var _barrier_lowered := false
+var _city: AudioStreamPlayer
+var _far: AudioStreamPlayer3D
+var _out_drip_next := 0.0
+var traces: Array[String] = []
 
 # 테스트용 길 안내
 var _route: Array[Vector3] = []
@@ -81,8 +95,29 @@ func _ready() -> void:
 	LevelEnv.create(self, LevelEnv.GI.BAKED)
 
 	b2 = _make_floor("B2", Vector3.ZERO, "B2", true, true, true, "출구  ↑ B1")
-	b3 = _make_floor("B3", HelixRamp.upper_origin(), "B3", true, false, false, "", HelixRamp.UPPER_ROT_Y)
+	var upper := HelixRamp.upper_origin()
+	b1 = _make_floor("B1", upper, "B1", true, false, false, "출구  ↑ 1F", HelixRamp.UPPER_ROT_Y, true, 2209)
+	b3 = _make_floor("B3", upper, "B3", true, false, false, "출구  ↑ B2", HelixRamp.UPPER_ROT_Y, true, 3301)
+	# B3의 위로 가는 경사로는 닫혀 있다
+	var closed := (load(ParkingFloor.KIT + "fire_shutter.glb") as PackedScene).instantiate() as Node3D
+	closed.position = ParkingFloor.tunnel_point(1.0)
+	b3.add_child(closed)
+	var closed_body := StaticBody3D.new()
+	var ccs := CollisionShape3D.new()
+	var cshape := BoxShape3D.new()
+	cshape.size = Vector3(0.2, 2.7, 6.0)
+	ccs.shape = cshape
+	ccs.position = ParkingFloor.tunnel_point(1.0) + Vector3(0, 1.35, 0)
+	closed_body.add_child(ccs)
+	b3.add_child(closed_body)
+	b1.set_render_layer(2)
 	b3.set_render_layer(2)
+	prologue = Prologue.new()
+	prologue.name = "Prologue"
+	add_child(prologue)
+	prologue.build(b1.to_global(Vector3(W + ParkingFloor.RAMP_LEN, ParkingFloor.RAMP_RISE, ParkingFloor.RAMP_Z)))
+	prologue.ticket_taken.connect(_on_ticket)
+	_build_half_shutter()
 	east_helix = _make_helix("EastHelix", EAST, "east")
 	west_helix = _make_helix("WestHelix", WEST, "west")
 	# 서쪽 나선의 아래쪽 끝은 아무 데도 이어지지 않으니 막는다 (가운데에서는 보이지 않는다)
@@ -99,20 +134,24 @@ func _ready() -> void:
 	add_child(_hold)
 
 	var test := LevelEnv.arg_value("--test")
-	_spawn_player(test == "")
+	var start := LevelEnv.arg_value("--start")
+	if start == "":
+		start = "prologue" if (test == "" or test == "prologue") else "b2"
+	_spawn_player(test == "", start)
 	if test != "":
 		_run_test(test)
 
 
 # ================================================================ 만들기
 
-func _make_floor(node_name: String, origin: Vector3, label: String, west: bool, helix: bool, cup: bool, sign: String, yaw := 0.0) -> ParkingFloor:
+func _make_floor(node_name: String, origin: Vector3, label: String, west: bool, helix: bool, cup: bool, sign: String, yaw := 0.0, tunnel := false, seed := 2209) -> ParkingFloor:
 	var f := ParkingFloor.new()
 	f.name = node_name
 	f.floor_name = label
 	f.sign_text = sign
+	f.light_seed = seed
 	f.west_opening = west
-	f.east_tunnel = false
+	f.east_tunnel = tunnel
 	f.east_helix = helix
 	f.with_cup = cup
 	f.position = origin
@@ -147,6 +186,24 @@ func _cap(origin: Vector3, center: Vector3, size: Vector3) -> void:
 	body.position = origin + center
 	body.add_child(cs)
 	add_child(body)
+
+
+## 지상에서 B1로 내려가는 경사로 위쪽의 반쯤 내려온 셔터: 웅크려야 지나간다 (웅크리기를 배운다).
+func _build_half_shutter() -> void:
+	var gap := 1.15
+	var at := ParkingFloor.tunnel_point(20.5)
+	var s := (load(ParkingFloor.KIT + "fire_shutter.glb") as PackedScene).instantiate() as Node3D
+	s.position = at + Vector3(0, gap, 0)
+	b1.add_child(s)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.25, 2.7 - gap + 0.3, 6.0)
+	cs.shape = shape
+	cs.position = at + Vector3(0, gap + shape.size.y / 2.0, 0)
+	body.add_child(cs)
+	b1.add_child(body)
+	b1.set_render_layer(2)   # 새로 붙인 셔터도 B1 조명을 받게
 
 
 ## B3 입구(동쪽 나선 출구 끝)의 방화셔터. 처음에는 숨겨 둔다.
@@ -195,7 +252,7 @@ func _build_gi() -> void:
 	# 화면 없이(headless) 실행하면 제대로 구울 수 없으므로 아무것도 하지 않는다
 	if DisplayServer.get_name() == "headless":
 		return
-	_gi_group([b2, b3], Vector3(24.0, 1.3, 16.0), Vector3(48.6, 3.2, 32.6), GI_FLOOR_PATH, 1.2)
+	_gi_group([b2, b1, b3], Vector3(24.0, 1.3, 16.0), Vector3(48.6, 3.2, 32.6), GI_FLOOR_PATH, 1.2)
 	# 나선은 좁고 벽이 밝아서 간접광이 과하게 쌓인다. 층보다 약하게 한다
 	_gi_group([east_helix, west_helix], Vector3(13.0, 3.0, 9.0), Vector3(26.0, 7.0, 26.0), GI_HELIX_PATH, 0.55)
 
@@ -257,6 +314,18 @@ func _build_audio() -> void:
 	_sfx.bus = "Parking"
 	_sfx.unit_size = 10.0
 	add_child(_sfx)
+	# 멀리서 나는 소리 (차단기): 크게 울리고 멀리까지 들린다
+	_far = AudioStreamPlayer3D.new()
+	_far.bus = "Parking"
+	_far.unit_size = 30.0
+	_far.max_distance = 120.0
+	add_child(_far)
+	# 바깥 밤거리 소리
+	_city = AudioStreamPlayer.new()
+	_city.stream = ProcAudio.city()
+	_city.volume_db = -60.0
+	_city.autoplay = true
+	add_child(_city)
 
 
 func _build_debug() -> void:
@@ -272,20 +341,83 @@ func _build_debug() -> void:
 	add_child(layer)
 
 
-func _spawn_player(interactive: bool) -> void:
+func _spawn_player(interactive: bool, start: String) -> void:
 	player = CharacterBody3D.new()
 	player.set_script(PLAYER_SCRIPT)
 	player.name = "Player"
 	player.set("sfx_bus", "Parking")
 	player.set("input_enabled", interactive)
-	player.position = SPAWN
-	player.rotation.y = PI / 2   # 서쪽(-X)을 본다: 방금 동쪽 경사로로 내려온 모습
+	if start == "prologue":
+		player.position = prologue.start_point
+		player.rotation.y = PI   # 건물 입구(+Z)를 본다
+		_set_upper(false)
+	else:
+		player.position = SPAWN
+		player.rotation.y = PI / 2   # 서쪽(-X)을 본다: 방금 동쪽 경사로로 내려온 모습
+		prologue_done = true
+		_barrier_lowered = true
+		_set_upper(true)
 	add_child(player)
 	gate_down.player = player
 	gate_landing.player = player
 
 
 # ================================================================ 진행
+
+## 위층을 B1(프롤로그) 또는 B3(그 뒤)로 정한다. 숨긴 쪽은 충돌과 처리도 끈다.
+func _set_upper(is_b3: bool) -> void:
+	b1.visible = not is_b3
+	b1.process_mode = Node.PROCESS_MODE_DISABLED if is_b3 else Node.PROCESS_MODE_INHERIT
+	b3.visible = is_b3
+	b3.process_mode = Node.PROCESS_MODE_INHERIT if is_b3 else Node.PROCESS_MODE_DISABLED
+
+
+func _upper() -> ParkingFloor:
+	return b3 if prologue_done else b1
+
+
+func _on_ticket() -> void:
+	traces.append("주차권 (1999.07.14)")
+	_sfx.global_position = prologue.ticket.global_position
+	_sfx.stream = ProcAudio.paper()
+	_sfx.play()
+	print("TRACE 1: 주차권")
+
+
+## 프롤로그 진행: B1에 들어서면 멀리서 차단기가 내려오고, B2에 들어서면 위층이 B3로 바뀐다.
+func _update_prologue() -> void:
+	if prologue_done or player == null:
+		return
+	var p := player.global_position
+	var in_b1 := _in_floor(b1, p)
+	if in_b1 and not _barrier_lowered:
+		_barrier_lowered = true
+		prologue.lower_barrier()
+		_far.global_position = prologue.mouth + Vector3(3.9, 1.0, -1.4)
+		_far.stream = ProcAudio.barrier()
+		_far.play()
+		print("prologue: entered B1, barrier lowered")
+	if _in_floor(b2, p):
+		prologue_done = true
+		_set_upper(true)
+		print("prologue: reached B2 -> upper floor is now B3")
+	# 바깥: 도시 소리, 처마에서 떨어지는 물방울, 먼 쪽으로 갈수록 느려지는 걸음
+	var outside := prologue.is_outside(p)
+	_city.volume_db = lerpf(_city.volume_db, -22.0 if outside else -60.0, 0.05)
+	var far := (prologue.mouth.z - 20.0) - p.z
+	player.set("speed_scale", clampf(1.0 - far / 22.0, 0.12, 1.0) if outside else 1.0)
+	var t := Time.get_ticks_msec() / 1000.0
+	if outside and t >= _out_drip_next:
+		_out_drip_next = t + _rng.randf_range(0.8, 2.2)
+		_far.global_position = prologue.mouth + Vector3(_rng.randf_range(-6, 6), 3.3, -1.0)
+		_far.stream = ProcAudio.drip(_rng.randi_range(1, 50))
+		_far.play()
+
+
+func _in_floor(f: ParkingFloor, world: Vector3) -> bool:
+	var l := f.to_local(world)
+	return l.x > 0.3 and l.x < W - 0.3 and l.z > 0.3 and l.z < ParkingFloor.D - 0.3 and l.y > -0.5 and l.y < 2.0
+
 
 func _on_gate_down(forward: bool, teleported: bool) -> void:
 	if not (forward and teleported):
@@ -304,7 +436,8 @@ func _on_gate_down(forward: bool, teleported: bool) -> void:
 
 
 func _process(delta: float) -> void:
-	if not solved:
+	_update_prologue()
+	if not solved and prologue_done:
 		elapsed += delta * hint_scale
 		while hint_stage < HINT_TIMES.size() and elapsed >= HINT_TIMES[hint_stage]:
 			hint_stage += 1
@@ -366,7 +499,7 @@ func _update_sign_hint() -> void:
 
 
 func _update_b3_shutter() -> void:
-	if _b3_shutter_closed or not solved or player == null:
+	if _b3_shutter_closed or not solved or not prologue_done or player == null:
 		return
 	var cam: Camera3D = player.get("camera")
 	if cam == null:
@@ -398,12 +531,14 @@ func _update_floor_lights() -> void:
 	if player == null:
 		return
 	var p := player.global_position
+	var up := _upper()
 	var b3_on := p.y > 1.2
-	var b2_on := b3.to_local(p).x < 10.0 or p.y < 1.2
+	var b2_on := up.to_local(p).x < 10.0 or p.y < 1.2
 	if b3_on != _b3_lights_on:
 		_b3_lights_on = b3_on
-		for l in b3.lights():
-			(l as Light3D).visible = b3_on
+		for f in [b1, b3]:
+			for l in (f as ParkingFloor).lights():
+				(l as Light3D).visible = b3_on
 	if b2_on != _b2_lights_on:
 		_b2_lights_on = b2_on
 		for l in b2.lights():
@@ -411,7 +546,7 @@ func _update_floor_lights() -> void:
 
 
 func _check_solved() -> void:
-	if solved or player == null:
+	if solved or not prologue_done or player == null:
 		return
 	var p := b3.to_local(player.global_position)
 	if p.y > -0.3 and p.x > 0.0 and p.x < W and p.z > 0.0 and p.z < ParkingFloor.D:
@@ -479,6 +614,8 @@ func _run_test(kind: String) -> void:
 			await _save(out.path_join("up_look_back.png"))
 		"tour":
 			await _test_tour(out)
+		"prologue":
+			await _test_prologue(out)
 		"hints":
 			await _test_hints(out)
 	get_tree().quit()
@@ -569,6 +706,69 @@ func _test_tour(out: String) -> void:
 		await _save(out.path_join(s[0] + ".png"))
 		await get_tree().create_timer(2.0).timeout   # 셰이더 준비가 끝난 뒤의 fps
 		print("tour ", s[0], "  fps=", Engine.get_frames_per_second())
+
+
+func _walk_to(points: Array[Vector3], timeout_s := 60.0) -> void:
+	_route = points
+	var deadline := Time.get_ticks_msec() + int(timeout_s * 1000.0)
+	while not _route.is_empty() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if not _route.is_empty():
+		print("prologue test: route timed out at ", player.global_position)
+		_route.clear()
+		player.set("auto_move", Vector3.ZERO)
+
+
+## 프롤로그를 처음부터 끝까지 걷는다: 연석 점프 → 정산소 창문 열기 → 주차권 → 셔터 밑 웅크리기 → B1 → B2.
+func _test_prologue(out: String) -> void:
+	var m := prologue.mouth
+	var gy := prologue.ground_y
+	await _save(out.path_join("p0_start.png"))
+	await _walk_to([Vector3(m.x - 2.0, gy, m.z - 11.0)])
+	player.call("request_jump")
+	await _walk_to([Vector3(m.x - 3.0, gy, m.z - 8.5)])
+	print("after curb: z=%.1f (넘었으면 %.1f보다 커야 함)" % [player.global_position.z, m.z - 9.7])
+	# 정산소 창문 앞에서 창문을 보고 E
+	await _walk_to([Vector3(m.x - 4.9, gy, m.z - 3.5)])
+	player.global_position = Vector3(m.x - 4.9, gy + 0.05, m.z - 3.5)   # 길 안내는 1 m 앞에서 멈추므로 정확히 세운다
+	player.rotation.y = PI / 2   # 서쪽(-X)을 본다
+	player.call("set_look", -0.15)
+	await get_tree().create_timer(0.3).timeout
+	print("open window: ", player.call("try_interact"))
+	await get_tree().create_timer(1.0).timeout
+	await _save(out.path_join("p1_booth_open.png"))
+	player.call("set_look", -0.55)
+	await get_tree().create_timer(0.3).timeout
+	print("take ticket: ", player.call("try_interact"), "  traces=", traces)
+	player.call("set_look", 0.0)
+	# 입구로, 셔터 밑은 웅크려서
+	await _walk_to([Vector3(m.x, gy, m.z - 4.0), Vector3(m.x, gy, m.z - 0.5)])
+	await _save(out.path_join("p2_entrance.png"))
+	# 서서는 셔터 밑을 못 지나가야 한다
+	var shutter_z := b1.to_global(ParkingFloor.tunnel_point(20.5)).z
+	_route = [b1.to_global(ParkingFloor.tunnel_point(14.0))]
+	await get_tree().create_timer(4.0).timeout
+	_route.clear()
+	player.set("auto_move", Vector3.ZERO)
+	print("standing at shutter: z=%.2f, shutter z=%.2f (서서는 셔터 앞에서 멈춰야 함)" % [player.global_position.z, shutter_z])
+	player.set("auto_crouch", true)
+	var tunnel_mid := b1.to_global(ParkingFloor.tunnel_point(14.0))
+	await _walk_to([tunnel_mid])
+	player.set("auto_crouch", false)
+	await get_tree().create_timer(0.5).timeout
+	print("after half shutter: crouching=%s pos=%s" % [player.get("crouching"), player.global_position])
+	# B1을 가로질러 서쪽 입구로
+	await _walk_to([b1.to_global(Vector3(W - 2.0, 0.0, 24.0)), b1.to_global(Vector3(24.0, 0.0, 24.0))])
+	await _save(out.path_join("p3_b1.png"))
+	await _walk_to([b1.to_global(Vector3(1.0, 0.0, 24.0))])
+	# 동쪽 나선을 내려가 B2로
+	var down: Array[Vector3] = []
+	for q in HelixRamp.route_down("east"):
+		down.append(EAST + q)
+	await _walk_to(down)
+	await get_tree().create_timer(0.5).timeout
+	await _save(out.path_join("p4_b2.png"))
+	print("prologue test end: done=%s barrier=%s b3_visible=%s pos=%s" % [prologue_done, _barrier_lowered, b3.visible, player.global_position])
 
 
 func _test_hints(out: String) -> void:
