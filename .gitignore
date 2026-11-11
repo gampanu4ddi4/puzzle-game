@@ -1,0 +1,12 @@
+# Godot
+.godot/
+*.translation
+export_presets.cfg
+/build/
+
+# Look-dev screenshots
+/shots/
+
+# OS
+Thumbs.db
+.DS_Store
