@@ -1,10 +1,10 @@
 ## 1인칭 플레이어.
-## WASD 걷기, Shift 천천히, Ctrl 웅크리기, Space 점프, E 상호작용, 마우스 둘러보기, F12 스크린샷.
+## WASD 걷기, Shift 달리기, Ctrl 웅크리기, Space 점프, E 상호작용, 마우스 둘러보기, F12 스크린샷.
 ## (Esc는 메뉴가 맡는다.) 감도, 상하 반전, 시야각, 화면 흔들림, 가운데 점은 설정(Settings)을 따른다.
 extends CharacterBody3D
 
 @export var walk_speed := 3.2
-@export var slow_speed := 1.6
+@export var run_speed := 5.5
 @export var crouch_speed := 1.6
 @export var jump_velocity := 4.2       # 약 0.9 m 높이까지
 const BASE_SENSITIVITY := 0.0022
@@ -146,8 +146,8 @@ func _physics_process(delta: float) -> void:
 	_update_crouch(auto_crouch or (input_enabled and Input.is_physical_key_pressed(KEY_CTRL)))
 
 	var dir := (transform.basis * input).normalized()
-	var slow := input_enabled and Input.is_physical_key_pressed(KEY_SHIFT)
-	var speed := crouch_speed if crouching else (slow_speed if slow else walk_speed)
+	var running := input_enabled and Input.is_physical_key_pressed(KEY_SHIFT) and not crouching and input.z < 0.0
+	var speed := crouch_speed if crouching else (run_speed if running else walk_speed)
 	speed *= speed_scale
 	velocity.x = dir.x * speed
 	velocity.z = dir.z * speed
@@ -167,12 +167,13 @@ func _physics_process(delta: float) -> void:
 	if is_on_floor() and moved > 0.0:
 		_bob += delta * speed * 2.2
 		_step_dist += moved
-		if _step_dist >= step_length:
+		# 달릴 때는 발소리 간격을 조금 늘린다 (속도만큼 늘리면 너무 띄엄띄엄하다)
+		if _step_dist >= step_length * (1.3 if running else 1.0):
 			_step_dist = 0.0
-			_play_step(slow or crouching)
+			_play_step(crouching, running)
 
 	var target := crouch_eye_height if crouching else eye_height
-	var bob := sin(_bob) * 0.018 if _head_bob else 0.0
+	var bob := sin(_bob) * (0.028 if running else 0.018) if _head_bob else 0.0
 	camera.position.y = lerpf(camera.position.y, target + bob, 10.0 * delta)
 	_update_hover()
 
@@ -235,10 +236,10 @@ func _update_hover() -> void:
 	_dot.color = Color(1, 1, 1, 0.75) if hovered != null else Color(1, 1, 1, 0.35)
 
 
-func _play_step(quiet: bool) -> void:
+func _play_step(quiet: bool, loud := false) -> void:
 	_step_player.stream = _steps[_rng.randi() % _steps.size()]
 	_step_player.pitch_scale = _rng.randf_range(0.92, 1.08)
-	_step_player.volume_db = -20.0 if quiet else -14.0
+	_step_player.volume_db = -20.0 if quiet else (-10.0 if loud else -14.0)
 	_step_player.play()
 
 

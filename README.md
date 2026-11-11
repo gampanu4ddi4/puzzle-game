@@ -44,7 +44,7 @@ Ubuntu 참고:
 연석을 넘고, 정산소 창문을 열어 주차권을 줍고, 셔터 밑을 웅크려 지나 B1을 거쳐 B2로 내려간다.
 B2에서는 서쪽 나선을 내려가면 다시 B2가 나오고, 내려온 동쪽 나선을 거슬러 올라가면 B3에 도착한다.
 
-- 조작: WASD 걷기, 마우스 둘러보기, Space 점프, Ctrl 웅크리기, E 상호작용, Shift 천천히, Esc 일시정지, F2 디버그 표시
+- 조작: WASD 걷기, 마우스 둘러보기, Space 점프, Ctrl 웅크리기, E 상호작용, Shift 달리기, Esc 일시정지, F2 디버그 표시
 - B2에서 바로 시작: `godot --path . -- --start=b2` (1-2 시작은 `--start=b3`, 1-3 시작은 `--start=b4`)
 - 자동 테스트: `godot --path . res://levels/ch1_parking/p1_1.tscn -- --test=prologue|menu|down|downback|up|tour|hints|p12|p13 --out=<폴더>`
   - `prologue`: 프롤로그를 처음부터 B2까지 자동으로 걷는다
@@ -56,7 +56,7 @@ B2에서는 서쪽 나선을 내려가면 다시 B2가 나오고, 내려온 동�
 
 실사 느낌을 확인하기 위한 시험 장면 (`levels/lookdev/parking_b2.tscn`). 편집기에서 이 장면을 열고 F6으로 실행한다.
 
-- 조작: WASD 걷기, Shift 천천히, Ctrl 웅크리기, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷
+- 조작: WASD 걷기, Shift 달리기, Ctrl 웅크리기, 마우스 둘러보기, Esc 마우스 풀기, F12 스크린샷
 - 장면: `levels/lookdev/parking_b2.tscn` (조립 스크립트 `parking_builder.gd`)
 
 ### 에셋 다시 만들기
