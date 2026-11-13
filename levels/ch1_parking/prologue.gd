@@ -10,6 +10,7 @@ class_name Prologue
 extends Node3D
 
 signal ticket_taken
+signal barrier_raised
 
 const LAYER := 4
 const SODIUM := Color("ffb05a")
@@ -22,6 +23,8 @@ var start_point: Vector3      # 플레이어 시작 위치
 var booth: Node3D
 var booth_window: Interactable
 var ticket: Interactable
+var barrier_lever: Interactable     # 정산소 안 차단기 개방 손잡이 (창문을 연 뒤 손이 닿는다)
+var barrier_up := false
 
 # 거리 치수 (입구 기준 z 오프셋, 바깥쪽이 음수)
 const WALK := 0.15            # 인도 높이
@@ -30,6 +33,8 @@ const FAR_CURB := -24.6
 const FAR_EDGE := -30.6
 
 var _arm_pivot: Node3D
+var _arm_shape: CollisionShape3D
+var _lever_pivot: Node3D
 var _bar_pivot: Node3D
 var _bar_swinging := false
 var _amber: Array[StandardMaterial3D] = []
@@ -71,10 +76,19 @@ func build(at_mouth: Vector3) -> void:
 	_build_bounds()
 
 
-## 차단기를 내린다 (플레이어가 B1에 들어섰을 때. 소리는 레벨에서 낸다).
-func lower_barrier() -> void:
+## 차단기를 올린다 (정산소 개방 손잡이). 올라가는 동안 소리가 나고, 다 올라가면 지나갈 수 있다.
+## 한 번 올린 차단기는 다시 내려오지 않는다 (확보한 길을 몰래 닫지 않는다).
+func raise_barrier() -> void:
+	if barrier_up:
+		return
+	barrier_up = true
+	_arm_shape.disabled = true
 	var tw := create_tween()
-	tw.tween_property(_arm_pivot, "rotation:z", 0.0, 1.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_arm_pivot, "rotation:z", deg_to_rad(-84.0), 1.4).set_trans(Tween.TRANS_SINE)
+	_sfx.global_position = _arm_pivot.global_position
+	_sfx.stream = ProcAudio.barrier()
+	_sfx.play()
+	barrier_raised.emit()
 
 
 ## 바깥(도로 쪽)에 있는지
@@ -466,7 +480,23 @@ func _build_entrance() -> void:
 	var white := _std(Color("ededed"), 0.5)
 	for i in 7:
 		_box(_arm_pivot, Vector3(1.0, 0.09, 0.06), Vector3(-0.5 - 1.0 * i, 0, 0), red if i % 2 == 0 else white, false)
-	_arm_pivot.rotation.z = deg_to_rad(-84.0)
+	# 내려와 있다. 팔 아래 늘어진 칸살(차단기 스커트)까지 막는다
+	var skirt := _std(Color("d8d8d2"), 0.6)
+	var arm_h := WALK + 1.08
+	for i in 20:
+		_box(_arm_pivot, Vector3(0.025, arm_h - 0.32, 0.025), Vector3(-0.3 - 0.35 * i, -(arm_h - 0.32) / 2.0 - 0.05, 0), skirt, false)
+	_box(_arm_pivot, Vector3(6.95, 0.03, 0.03), Vector3(-3.5, -(arm_h - 0.27), 0), skirt, false)
+	var arm_body := StaticBody3D.new()
+	_arm_shape = CollisionShape3D.new()
+	var arm_box := BoxShape3D.new()
+	arm_box.size = Vector3(7.0, arm_h, 0.14)
+	_arm_shape.shape = arm_box
+	_arm_shape.position = Vector3(-3.5, -arm_h / 2.0 + 0.05, 0)
+	arm_body.add_child(_arm_shape)
+	_arm_pivot.add_child(arm_body)
+	# 차단기 양옆 보행자 난간: 차로 밖으로 돌아 들어가지 못하게 (건물 외벽까지)
+	_guard_rail(_w(3.6, 0.0, -3.4), _w(3.6, 0.0, -0.65))
+	_guard_rail(_w(-3.45, 0.0, -3.4), _w(-3.45, 0.0, -0.65))
 	# 발권기 (차로 쪽을 본다)
 	_prop("ticket_machine", _w(4.2, WALK, -4.9), 0.0, "box", Vector3(0.5, 1.62, 0.5))
 	# 도로반사경 (진입로 왼쪽 모서리, 나가는 차가 도로를 보게)
@@ -622,9 +652,63 @@ func _build_booth() -> void:
 	booth.add_child(ticket)
 	ticket.interacted.connect(_take_ticket)
 
+	# 차단기 개방 손잡이: 계산대 창가 쪽. 유리 너머로 처음부터 보이고, 창문을 열면 손이 닿는다
+	_box(booth, Vector3(0.16, 0.06, 0.22), Vector3(-0.72, 1.03, -0.6), _std(Color("33383a"), 0.5, 0.5), false)
+	_lever_pivot = Node3D.new()
+	_lever_pivot.position = Vector3(-0.72, 1.06, -0.6)
+	booth.add_child(_lever_pivot)
+	_box(_lever_pivot, Vector3(0.025, 0.22, 0.025), Vector3(0, 0.11, 0), _std(Color("c8c8c8"), 0.25, 1.0), false)
+	_box(_lever_pivot, Vector3(0.06, 0.06, 0.06), Vector3(0, 0.23, 0), _std(Color("c23a2e"), 0.45), false)
+	_lever_pivot.rotation.x = 0.5
+	var plate := _label(booth, "차단기 열림", Vector3(-0.72, 1.062, -0.82), 0.0009, Color(0.9, 0.9, 0.86), 64, -PI / 2)
+	plate.rotation.x = -PI / 2
+	barrier_lever = Interactable.new()
+	barrier_lever.position = Vector3(-0.72, 1.18, -0.6)
+	var lcs := CollisionShape3D.new()
+	var lsh := BoxShape3D.new()
+	lsh.size = Vector3(0.2, 0.3, 0.2)
+	lcs.shape = lsh
+	barrier_lever.add_child(lcs)
+	barrier_lever.enabled = false
+	booth.add_child(barrier_lever)
+	barrier_lever.interacted.connect(_pull_lever)
+
+
+## 노랑·검정 보행자 난간 (높이 1.05, 점프로 못 넘는다)
+func _guard_rail(a: Vector3, b: Vector3) -> void:
+	var d := b - a
+	var length := d.length()
+	var yaw := atan2(d.x, d.z)
+	var yellow := _std(Color("e3c23b"), 0.55)
+	var black := _std(Color("1e1e1e"), 0.6)
+	var n := int(ceil(length / 1.0))
+	for i in n + 1:
+		var p := a + d * (float(i) / n)
+		_box(self, Vector3(0.06, 1.05, 0.06), p + Vector3(0, 0.525, 0), yellow, false)
+	for k in 2:
+		var bar := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.05, 0.05, length)
+		bar.mesh = bm
+		bar.material_override = yellow if k == 0 else black
+		bar.position = (a + b) / 2.0 + Vector3(0, 1.02 if k == 0 else 0.55, 0)
+		bar.rotation.y = yaw
+		bar.layers = LAYER
+		add_child(bar)
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.1, 1.05, length)
+	cs.shape = shape
+	body.position = (a + b) / 2.0 + Vector3(0, 0.525, 0)
+	body.rotation.y = yaw
+	body.add_child(cs)
+	add_child(body)
+
 
 func _open_window() -> void:
 	booth_window.enabled = false
+	barrier_lever.enabled = true
 	(booth_window.get_child(0) as CollisionShape3D).disabled = true
 	var tw := create_tween()
 	tw.tween_property(booth_window, "position:z", booth_window.position.z + 0.72, 0.6).set_trans(Tween.TRANS_SINE)
@@ -632,6 +716,16 @@ func _open_window() -> void:
 	_sfx.global_position = booth_window.global_position
 	_sfx.stream = ProcAudio.click()
 	_sfx.play()
+
+
+func _pull_lever() -> void:
+	barrier_lever.enabled = false
+	var tw := create_tween()
+	tw.tween_property(_lever_pivot, "rotation:x", -0.5, 0.25).set_trans(Tween.TRANS_SINE)
+	_sfx.global_position = _lever_pivot.global_position
+	_sfx.stream = ProcAudio.lever()
+	_sfx.play()
+	get_tree().create_timer(0.35).timeout.connect(raise_barrier)
 
 
 func _take_ticket() -> void:

@@ -258,6 +258,71 @@ static func click() -> AudioStreamWAV:
 	return _wav(s)
 
 
+## 레일 위 정비대가 굴러가다 멈추는 소리: 쇠바퀴 굴림 + 레일 끽 소리 + 멈춤 쿵. 길이 = 움직이는 시간.
+static func cart_roll(duration: float) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 61
+	var n := int(RATE * (duration + 0.45))
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var run := smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(duration - 0.12, duration, t))
+		lp += (rng.randf_range(-1.0, 1.0) - lp) * 0.06
+		lp2 += (lp - lp2) * 0.2
+		var clack := 0.0
+		var tc := fmod(t, 0.31)   # 레일 이음매를 지날 때마다 딸깍
+		if t < duration:
+			clack = sin(TAU * 900.0 * tc) * exp(-tc * 90.0) * 0.25
+		phase += TAU * (1650.0 + 120.0 * sin(TAU * 1.3 * t)) / RATE
+		var squeal := sin(phase) * 0.06 * run * (0.5 + 0.5 * sin(TAU * 0.9 * t))
+		var thud := 0.0
+		if t > duration:
+			var td := t - duration
+			thud = sin(TAU * 95.0 * td) * exp(-td * 18.0) * 0.8 + rng.randf_range(-1.0, 1.0) * exp(-td * 60.0) * 0.3
+		s[i] = (lp2 * 3.0 * run + clack * run + squeal + thud) * 0.55
+	return _wav(s)
+
+
+## 걸쇠가 걸려 손잡이가 움직이지 않는 소리: 짧은 쇠 걸림 두 번.
+static func latch() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 62
+	var n := int(RATE * 0.35)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var v := 0.0
+		for k in 2:
+			var tk := t - 0.12 * k
+			if tk > 0.0:
+				v += (sin(TAU * 1400.0 * tk) * 0.4 + sin(TAU * 2350.0 * tk) * 0.25 + rng.randf_range(-1.0, 1.0) * 0.35) * exp(-tk * 75.0)
+		s[i] = v * 0.5
+	return _wav(s)
+
+
+## 손잡이를 당기는 소리: 묵직한 철컥.
+static func lever() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 63
+	var n := int(RATE * 0.4)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var slide := rng.randf_range(-1.0, 1.0) * smoothstep(0.0, 0.03, t) * (1.0 - smoothstep(0.08, 0.14, t)) * 0.3
+		var tc := t - 0.13
+		var clunk := 0.0
+		if tc > 0.0:
+			clunk = (sin(TAU * 180.0 * tc) * 0.6 + sin(TAU * 760.0 * tc) * 0.3) * exp(-tc * 30.0) + rng.randf_range(-1.0, 1.0) * exp(-tc * 80.0) * 0.4
+		s[i] = (slide + clunk) * 0.6
+	return _wav(s)
+
+
 ## 공간 울림을 넣은 효과음 버스를 만든다 (이미 있으면 그대로 쓴다).
 static func ensure_reverb_bus(name: String, room_size: float, wet: float) -> String:
 	if AudioServer.get_bus_index(name) != -1:
