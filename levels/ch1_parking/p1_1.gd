@@ -1,15 +1,15 @@
-## 1장 주차장 (v2): 프롤로그 → B1 → 나선 경사로 → B2 → v2_p01 "겹친 빈자리" (docs/levels/ch1_parking.md).
+## 1장 주차장 (v2): 프롤로그 → B1 → 나선 경사로 → B2 → 기계식 주차 구역 v2_p01·v2_p02 (docs/levels/ch1_parking.md).
 ##
 ## 구성:
 ##   프롤로그 (prologue.gd): 지상 거리와 입구. 정산소 창문을 열고 개방 손잡이를 당기면 차단기가 올라간다.
 ##   B1      : 입구 경사로를 내려와 닿는 층. B2 북동쪽 위에 실제로 겹쳐 있다 (렌더 레이어 2).
 ##   동쪽 나선: B1 서쪽 끝에서 B2 동쪽 입구로 내려가는 270도 나선. 반복·순간이동 없는 정상 경사로다.
-##   B2      : 나선을 내려오면 서쪽 끝(복도 정면)에 P01의 틈과 정비대 A가 보인다.
-##   P01     : B2 서쪽 입구 밖 (p01_room.gd).
+##   B2      : 나선을 내려오면 서쪽 끝(복도 정면)에 기계식 주차 구역 입구가 보인다.
+##   P01·P02 : B2 서쪽 입구 밖의 기계식 주차 구역 (mech_parking.gd).
 ##
 ## 실행 인자 (테스트용):
-##   --test=prologue|menu|tour|p01        자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
-##   --start=prologue|b2|p01              시작 위치 (기본: 프롤로그). b2 = 나선 출구, p01 = P01 입구 홀
+##   --test=prologue|menu|tour|p01|p02    자동으로 걷거나 둘러보며 스크린샷을 찍고 종료
+##   --start=prologue|b2|p01|p02          시작 위치 (기본: 프롤로그). b2 = 나선 출구, p01 = 기계식 구역 입구, p02 = P01을 푼 자리
 ##   --out=<폴더>                         테스트 스크린샷 저장 위치
 ##   --hint-scale=<배수>                  힌트 시간을 빠르게 (예: 100)
 ##   --rebake-gi                          간접광을 다시 굽는다
@@ -18,7 +18,7 @@ extends Node3D
 const PLAYER_SCRIPT := preload("res://core/player/player.gd")
 const GI_FLOOR_PATH := "res://levels/ch1_parking/p1_1_floor_voxelgi.res"
 const GI_HELIX_PATH := "res://levels/ch1_parking/p1_1_helix_voxelgi.res"
-const GI_P01_PATH := "res://levels/ch1_parking/v2_p01_voxelgi.res"
+const GI_MECH_PATH := "res://levels/ch1_parking/v2_mech_voxelgi.res"
 
 const W := ParkingFloor.W
 const H := ParkingFloor.H
@@ -32,7 +32,7 @@ var b1: ParkingFloor            # 입구에서 내려와 닿는 위층
 var prologue: Prologue
 var prologue_done := false
 var east_helix: HelixRamp
-var p01: P01Room
+var mech: MechParking
 
 var _sfx: AudioStreamPlayer3D
 var _debug: Label
@@ -69,13 +69,13 @@ func _ready() -> void:
 	prologue.ticket_taken.connect(_on_ticket)
 	_build_half_shutter()
 	east_helix = _make_helix("EastHelix", EAST, "east")
-	p01 = P01Room.new()
-	p01.name = "P01"
-	add_child(p01)
-	p01.build_room()
+	mech = MechParking.new()
+	mech.name = "MechParking"
+	add_child(mech)
+	mech.build_room()
 	var hs := LevelEnv.arg_value("--hint-scale")
 	if hs != "":
-		p01.hint_scale = float(hs)
+		mech.hint_scale = float(hs)
 
 	_build_gi()
 	_build_audio()
@@ -147,7 +147,7 @@ func _build_half_shutter() -> void:
 	b1.set_render_layer(2)   # 새로 붙인 셔터도 B1 조명을 받게
 
 
-## 미리 구운 간접광 (VoxelGI). 층, 나선, P01을 따로 굽는다.
+## 미리 구운 간접광 (VoxelGI). 층, 나선, 기계식 구역을 따로 굽는다.
 ## SDFGI는 카메라를 따라 계산이 쌓여서 밝기가 출렁이므로 쓰지 않는다.
 func _build_gi() -> void:
 	# 화면 없이(headless) 실행하면 제대로 구울 수 없으므로 아무것도 하지 않는다
@@ -156,7 +156,7 @@ func _build_gi() -> void:
 	_gi_group([b2, b1], Vector3(24.0, 1.3, 16.0), Vector3(48.6, 3.2, 32.6), GI_FLOOR_PATH, 1.2)
 	# 나선은 좁고 벽이 밝아서 간접광이 과하게 쌓인다. 층보다 약하게 한다
 	_gi_group([east_helix], Vector3(13.0, 3.0, 9.0), Vector3(26.0, 7.0, 26.0), GI_HELIX_PATH, 0.55)
-	_gi_group([p01], Vector3(-13.8, 0.6, 27.0), Vector3(28.0, 4.4, 20.4), GI_P01_PATH, 0.9)
+	_gi_group([mech], Vector3(-17.2, 0.0, 23.5), Vector3(35.0, 6.4, 10.0), GI_MECH_PATH, 0.9)
 
 
 func _gi_group(nodes: Array, center: Vector3, size: Vector3, path: String, energy: float) -> void:
@@ -242,11 +242,14 @@ func _spawn_player(interactive: bool, start: String) -> void:
 		prologue.raise_barrier()
 		if start == "p01":
 			player.position = P01_SPAWN
+		elif start == "p02":
+			mech.jump_to_p02()
+			player.position = Vector3(-23.5, 0.05, 24.0)
 		else:
 			player.position = SPAWN
 		player.rotation.y = PI / 2   # 서쪽(-X)을 본다: 방금 나선을 내려온 모습
 	add_child(player)
-	p01.player = player
+	mech.player = player
 
 
 # ================================================================ 진행
@@ -303,8 +306,8 @@ func _process(_delta: float) -> void:
 	_f2_was = Input.is_physical_key_pressed(KEY_F2)
 	if _debug.visible and player:
 		var p := player.global_position
-		_debug.text = "barrier:%s  prologue:%s\nP01  cart:%d  decoy:%d  solved:%s  hint:%d  stall:%.0fs\npos: %.1f, %.1f, %.1f   fps:%d" % [
-			prologue.barrier_up, prologue_done, p01.cart_state.value, p01.decoy_state.value, p01.is_solved, p01.hint_stage, p01.stall,
+		_debug.text = "barrier:%s  prologue:%s\nP0%d  lift:%d  deck:%d  hint:%d  stall:%.0fs\npos: %.1f, %.1f, %.1f   fps:%d" % [
+			prologue.barrier_up, prologue_done, mech.stage, mech.lift.value, mech.deck.value, mech.hint_stage, mech.stall,
 			p.x, p.y, p.z, Engine.get_frames_per_second()]
 
 
@@ -367,6 +370,8 @@ func _run_test(kind: String) -> void:
 			await _test_menu(out)
 		"p01":
 			await _test_p01(out)
+		"p02":
+			await _test_p02(out)
 	get_tree().quit()
 
 
@@ -382,12 +387,12 @@ func _wait(s: float) -> void:
 func _tour_list() -> Array:
 	return [
 		["t1_helix_exit_view", Vector3(44.0, 1.6, 24.0), Vector3(-12.0, 0.6, 24.0)],
-		["t2_vestibule", Vector3(-0.5, 1.6, 26.5), Vector3(-4.0, 0.4, 21.5)],
-		["t3_corridor_gap", Vector3(-8.0, 1.6, 24.0), Vector3(-13.0, 0.0, 24.6)],
-		["t4_window", Vector3(-12.0, 1.6, 29.6), Vector3(-12.0, -0.4, 26.8)],
-		["t5_bay_b", Vector3(-22.0, 1.6, 29.0), Vector3(-24.0, -0.2, 33.0)],
-		["t6_corridor_end", Vector3(-14.5, 1.6, 24.0), Vector3(-24.0, 1.0, 24.0)],
-		["t7_b2_from_p01", Vector3(-2.0, 1.6, 24.0), Vector3(20.0, 1.0, 24.0)],
+		["t2_entrance", Vector3(-1.0, 1.6, 26.0), Vector3(-9.0, -0.5, 24.0)],
+		["t3_from_r_ahead", Vector3(-13.0, 1.6, 25.0), Vector3(-25.0, -0.6, 24.0)],
+		["t4_panel", Vector3(-13.9, 1.6, 24.6), Vector3(-13.9, 1.3, 22.6)],
+		["t5_m_to_exit", Vector3(-22.5, 1.6, 24.8), Vector3(-31.0, 0.8, 24.0)],
+		["t6_m_back", Vector3(-24.5, 1.6, 23.2), Vector3(-16.0, -0.3, 24.0)],
+		["t7_b2_from_mech", Vector3(-2.0, 1.6, 24.0), Vector3(20.0, 1.0, 24.0)],
 	]
 
 
@@ -553,28 +558,134 @@ func _test_prologue(out: String) -> void:
 	print("prologue test end: done=%s barrier_up=%s pos=%s" % [prologue_done, prologue.barrier_up, player.global_position])
 
 
-## P01: 미끼 C → 관찰창 → B를 1, 2로 → 창으로 A 확인 → 점유 보류 → 틈을 건너 끝까지.
-## 그 전에: 정지점 0에서 틈을 달려서 뛰어넘을 수 없는지, 떨어지면 안전 자리로 돌아오는지.
+## P01: 입구에서 첫 시야 → B를 건너 조작반 → ▼ 한 번(세 피트 모두 반쯤) → ▼ → A를 건넌다.
+## 그 전에: 달려서 피트를 뛰어넘을 수 없는지, 떨어지면 마지막 발판으로 돌아오는지.
 func _test_p01(out: String) -> void:
 	_route_accept = 0.4
-	# 나선 출구에서 첫 시야
 	player.call("set_look", -0.02)
 	await _wait(1.0)
 	await _save(out.path_join("01_first_view.png"))
 	player.global_position = P01_SPAWN
-	await _wait(0.6)
-	_aim_at(Vector3(-2.0, 0.0, 21.2))
+	await _wait(0.5)
+	_aim_at(Vector3(-9.0, -0.5, 24.0))
 	await _wait(0.4)
-	await _save(out.path_join("02_vestibule_c.png"))
-	# 정지점 0에서 틈 뛰어넘기 (달리기 + 점프)
-	player.global_position = Vector3(-7.0, 0.05, 24.0)
+	await _save(out.path_join("02_entrance.png"))
+	# 피트 A를 R에서 달려 뛰어넘기 (s = 2라 A는 바닥)
+	await _run_jump(MechParking.PIT_A.y + 0.2, Vector3(-12.2, 0.05, 24.0))
+	var jx := player.global_position.x
+	print("run+jump over pit A at s=2: x=%.2f -> %s" % [jx, "BLOCKED" if jx > MechParking.PIT_A.x else "CROSSED (실패)"])
+	# B를 건너 조작반으로
+	player.global_position = Vector3(-3.0, 0.05, 24.0)
+	var pts: Array[Vector3] = [Vector3(-13.9, 0.0, 23.4)]
+	await _walk_to(pts, 15.0)
+	player.rotation.y = 0.0
+	var down := mech.panel_button(-1)
+	_aim_at(down.global_position)
+	await _wait(0.3)
+	await _save(out.path_join("03_panel.png"))
+	print("press ▼: ", player.call("try_interact"))
+	await _wait(MechParking.LIFT_TIME + 0.3)
+	print("s=%d  B y=%.2f A y=%.2f G y=%.2f (모두 -1.30)" % [mech.lift.value, mech.pallet_y("B"), mech.pallet_y("A"), mech.pallet_y("G")])
+	_aim_at(Vector3(-18.7, -1.3, 24.0))
+	await _wait(0.3)
+	await _save(out.path_join("04_half_ahead.png"))
+	_aim_at(Vector3(-9.1, -1.3, 24.0))
+	await _wait(0.3)
+	await _save(out.path_join("05_half_behind.png"))
+	await _press(down)
+	print("s=%d  B y=%.2f A y=%.2f G y=%.2f (B·G -2.6, A 0)" % [mech.lift.value, mech.pallet_y("B"), mech.pallet_y("A"), mech.pallet_y("G")])
+	pts = [Vector3(-23.5, 0.0, 24.0)]
+	await _walk_to(pts, 15.0)
+	print("P01: stage=%d (2여야 함) pos=%s" % [mech.stage, player.global_position])
+	player.rotation.y = PI / 2
+	player.call("set_look", -0.1)
+	await _wait(0.4)
+	await _save(out.path_join("06_m_exit_view.png"))
+
+
+## P02: M에서 시작 (s = 0). 순진한 시도 → 갇힘 확인·복구 → 덮개 → ▲▲ → 덮개로 돌아와 → 덮개 열기 → 출구.
+func _test_p02(out: String) -> void:
+	_route_accept = 0.4
+	mech.jump_to_p02()
+	player.global_position = Vector3(-23.5, 0.05, 24.0)
+	player.rotation.y = PI / 2
+	await _wait(1.0)
+	await _save(out.path_join("11_m_start.png"))
+	# 출구 앞 G를 달려 뛰어넘기
+	await _run_jump(MechParking.PIT_G.y - 0.2, Vector3(-22.0, 0.05, 24.0))
+	var jx := player.global_position.x
+	print("run+jump over pit G: x=%.2f -> %s" % [jx, "BLOCKED" if jx > MechParking.PIT_G.x else "CROSSED (실패)"])
+	# 순진한 시도: 조작반에서 ▲▲ (G를 메우려고) → A가 내려가 M으로 못 돌아온다
+	var pts: Array[Vector3] = [Vector3(-13.9, 0.0, 23.4)]
+	await _walk_to(pts, 15.0)
+	await _press(mech.panel_button(1))
+	await _press(mech.panel_button(1))
+	print("naive ▲▲: s=%d A y=%.2f deck=%d -> R에서 M으로 갈 길 없음" % [mech.lift.value, mech.pallet_y("A"), mech.deck.value])
+	await _press(mech.panel_button(-1))
+	await _press(mech.panel_button(-1))
+	pts = [Vector3(-23.5, 0.0, 24.0)]
+	await _walk_to(pts, 15.0)
+	# 해법: 덮개(출구판 닫힘) → R에서 ▲▲ → 덮개로 M → 덮개 열기(출구판 열림) → 출구
+	player.global_position = Vector3(-22.9, 0.05, 23.5)
+	await _press(mech.handle_interactable(), MechParking.DECK_TIME + 0.3)
+	var door: Node3D = mech.get("_door_body")
+	print("deck=%d  door y=%.2f (닫힘 1.05)" % [mech.deck.value, door.position.y])
+	player.rotation.y = -PI / 2
+	player.call("set_look", -0.2)
+	await _wait(0.3)
+	await _save(out.path_join("12_deck_out.png"))
+	# 덮개 위에 서서 손잡이: 보류여야 한다
+	player.global_position = Vector3(-21.0, 0.1, 24.0)
+	await _wait(0.3)
+	mech.call("_pull_handle")
+	await _wait(0.3)
+	print("hold while on deck: deck=%d (1 그대로)" % mech.deck.value)
+	pts = [Vector3(-13.9, 0.0, 23.4)]
+	await _walk_to(pts, 15.0)
+	await _press(mech.panel_button(1))
+	await _press(mech.panel_button(1))
+	print("s=%d  A y=%.2f G y=%.2f (A -2.6, G 0)" % [mech.lift.value, mech.pallet_y("A"), mech.pallet_y("G")])
+	player.rotation.y = PI / 2
+	player.call("set_look", -0.15)
+	await _wait(0.3)
+	await _save(out.path_join("13_r_after_up.png"))
+	pts = [Vector3(-22.9, 0.0, 23.5)]
+	await _walk_to(pts, 15.0)
+	await _press(mech.handle_interactable(), MechParking.DECK_TIME + 0.3)
+	print("deck=%d  door y=%.2f (열림 3.2)" % [mech.deck.value, door.position.y])
+	player.rotation.y = PI / 2
+	player.call("set_look", 0.0)
+	await _wait(0.3)
+	await _save(out.path_join("14_exit_open.png"))
+	pts = [Vector3(-32.6, 0.0, 24.0)]
+	await _walk_to(pts, 15.0)
+	await _wait(0.5)
+	print("P02: stage=%d (3이어야 함) pos=%s" % [mech.stage, player.global_position])
+	await _wait(2.5)
+	await _save(out.path_join("15_end.png"))
+	print("fps=%d" % Engine.get_frames_per_second())
+
+
+func _press(it: Interactable, wait_s := MechParking.LIFT_TIME + 0.3) -> void:
+	_aim_at(it.global_position)
+	await _wait(0.2)
+	var ok: bool = player.call("try_interact")
+	if not ok:
+		print("  (press failed at %s)" % player.global_position)
+	await _wait(wait_s)
+
+
+## 서쪽(-X)으로 달려가 edge_x에서 뛴다. 떨어지면 복구까지 기다린다.
+func _run_jump(edge_x: float, from: Vector3) -> void:
+	player.global_position = from
 	player.rotation.y = PI / 2
 	player.call("set_look", 0.0)
 	await _wait(0.4)
 	player.set("input_enabled", true)   # 달리기는 Shift 입력이 있어야 한다
 	_set_shift(true)
 	player.set("auto_move", Vector3(0, 0, -1))
-	while player.global_position.x > GAP_EDGE + 0.15:
+	var deadline := Time.get_ticks_msec() + 5000
+	while player.global_position.x > edge_x and Time.get_ticks_msec() < deadline:
 		await get_tree().physics_frame
 	player.call("request_jump")
 	await _wait(1.2)
@@ -582,72 +693,3 @@ func _test_p01(out: String) -> void:
 	_set_shift(false)
 	player.set("input_enabled", false)
 	await _wait(2.0)
-	var jp := player.global_position
-	print("jump over gap at stop 0: pos x=%.2f y=%.2f -> %s" % [jp.x, jp.y, "BLOCKED (돌아옴)" if jp.x > -11.0 else "CROSSED (실패)"])
-	# 미끼 C: 끝까지 옮겨도 A는 그대로
-	player.global_position = Vector3(-3.75, 0.05, 23.75)
-	player.rotation.y = 0.0
-	await _wait(0.4)
-	var lc := p01.lever_of("C", 1)
-	for i in 2:
-		_aim_at(lc.global_position)
-		await _wait(0.2)
-		print("C forward: ", player.call("try_interact"))
-		await _wait(1.6)
-	print("after C x2: decoy=%d cart=%d  A z=%.2f (4.00이어야 함)  C z=%.2f" % [p01.decoy_state.value, p01.cart_state.value, p01.cart_local_z("A"), p01.cart_local_z("C")])
-	_aim_at(Vector3(-2.0, -0.2, 21.7))
-	await _wait(0.3)
-	await _save(out.path_join("03_c_moved.png"))
-	# 관찰창
-	player.global_position = Vector3(-12.0, 0.05, 29.5)
-	await _wait(0.4)
-	_aim_at(Vector3(-12.0, -0.3, 27.0))
-	await _wait(0.6)
-	await _save(out.path_join("04_window_before.png"))
-	# B를 한 칸
-	player.global_position = Vector3(-22.3, 0.05, 30.15)
-	player.rotation.y = PI
-	await _wait(0.4)
-	var lb := p01.lever_of("B", 1)
-	_aim_at(lb.global_position)
-	await _wait(0.2)
-	await _save(out.path_join("05_bay_b_post.png"))
-	print("B forward: ", player.call("try_interact"))
-	await _wait(1.6)
-	print("after B x1: cart=%d  A z=%.2f B z=%.2f (둘 다 3.30)" % [p01.cart_state.value, p01.cart_local_z("A"), p01.cart_local_z("B")])
-	_aim_at(lb.global_position)
-	await _wait(0.2)
-	print("B forward: ", player.call("try_interact"))
-	await _wait(1.6)
-	print("after B x2: cart=%d  A z=%.2f B z=%.2f (둘 다 1.00)" % [p01.cart_state.value, p01.cart_local_z("A"), p01.cart_local_z("B")])
-	_aim_at(Vector3(-24.0, -0.3, 32.6))
-	await _wait(0.3)
-	await _save(out.path_join("06_bay_b_filled.png"))
-	player.global_position = Vector3(-12.0, 0.05, 29.5)
-	await _wait(0.4)
-	_aim_at(Vector3(-12.0, -0.3, 26.5))
-	await _wait(0.5)
-	await _save(out.path_join("07_window_after.png"))
-	# 점유: A 위에 서 있으면 B를 되돌릴 수 없다
-	player.global_position = Vector3(-12.0, 0.05, 24.0)
-	await _wait(0.5)
-	var dummy := Node3D.new()
-	p01.call("_on_lever", p01.bays["B"], -1, dummy)
-	dummy.free()
-	await _wait(0.3)
-	print("hold while standing on A: cart=%d (2 그대로여야 함)" % p01.cart_state.value)
-	# 틈을 건너 통로 끝까지
-	player.global_position = Vector3(-9.6, 0.05, 24.0)
-	player.rotation.y = PI / 2
-	await _wait(0.4)
-	await _save(out.path_join("08_gap_filled.png"))
-	var pts: Array[Vector3] = [Vector3(-16.0, 0.0, 24.0), Vector3(-23.0, 0.0, 24.0)]
-	await _walk_to(pts, 20.0)
-	await _wait(0.5)
-	print("crossed: solved=%s finished=%s pos=%s" % [p01.is_solved, p01.is_finished, player.global_position])
-	await _wait(2.5)
-	await _save(out.path_join("09_end.png"))
-	print("fps=%d" % Engine.get_frames_per_second())
-
-
-const GAP_EDGE := -11.0
