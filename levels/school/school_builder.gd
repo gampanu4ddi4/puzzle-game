@@ -10,10 +10,10 @@ class_name SchoolBuilder
 extends Node3D
 
 const C := 0.5                  # 칸 크기
-const GX0 := -15.0              # 칸 격자 시작 (별관 서쪽 바깥 여유)
+const GX0 := -60.0              # 칸 격자 시작 (별관 서쪽 바깥 여유)
 const GZ0 := -1.0
-const NX := 134                 # (-15 .. 52) / 0.5
-const NZ := 140                 # (-1 .. 69) / 0.5
+const NX := 244                 # (-60 .. 62) / 0.5
+const NZ := 130                 # (-1 .. 64) / 0.5
 const WALL_T := 0.2
 const EXT_T := 0.3
 const OUTDOOR := ["out", "void", "court", "terrace"]
@@ -41,7 +41,9 @@ func build() -> void:
 		grids.append(grid)
 	for f in SchoolLayout.FLOORS:
 		_build_floor(f)
-	_build_roof()
+	for f in SchoolLayout.FLOORS:
+		_build_roof(f)
+	_build_pillars()
 	_build_ground()
 	var boxes := 0
 	for k in stats:
@@ -179,6 +181,10 @@ func _make_materials() -> void:
 
 
 # ================================================================ 칸 격자
+
+func _snap(v: float) -> float:
+	return round(v / C) * C
+
 
 func _cell_index(x: float, z: float) -> int:
 	var i := int(floor((x - GX0) / C))
@@ -373,7 +379,12 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				else:
 					list.append({"at": (a0 + a1) / 2.0, "w": 1.0, "h": 2.1, "kind": kind})
 			"stair":
-				list.append({"at": (a0 + a1) / 2.0, "w": 1.6, "h": 2.2, "kind": kind})
+				var at := (a0 + a1) / 2.0
+				var spec := _stair_spec(String(room["name"]))
+				var landing := _landing_along(spec, room["srect"], s)
+				if not is_nan(landing):
+					at = clampf(landing, a0 + 0.8, a1 - 0.8)
+				list.append({"at": at, "w": 1.4, "h": 2.2, "kind": kind})
 			"terrace":
 				list.append({"at": (a0 + a1) / 2.0, "w": 1.6, "h": 2.2, "kind": kind})
 			"ev":
@@ -394,21 +405,86 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 			if not ((ka == "out") != (kb == "out")):
 				continue
 			var on_side := false
+			if side.begins_with("x=") or side.begins_with("z="):
+				var axis_needed := "z" if side.begins_with("x=") else "x"
+				on_side = s["axis"] == axis_needed and absf(s["line"] - _snap(float(side.substr(2)))) < 0.01
 			match side:
 				"S":
-					on_side = s["axis"] == "x" and absf(s["line"] - SchoolLayout.D) < 0.01
+					on_side = s["axis"] == "x" and absf(s["line"] - _snap(SchoolLayout.D)) < 0.01
 				"N":
-					on_side = s["axis"] == "x" and absf(s["line"]) < 0.01
+					on_side = s["axis"] == "x" and absf(s["line"] - _snap(0.0)) < 0.01
 				"W":
-					on_side = s["axis"] == "z" and absf(s["line"]) < 0.01
+					on_side = s["axis"] == "z" and absf(s["line"] - _snap(0.0)) < 0.01
 				"E":
-					on_side = s["axis"] == "z" and absf(s["line"] - SchoolLayout.W) < 0.01
+					on_side = s["axis"] == "z" and absf(s["line"] - _snap(SchoolLayout.W)) < 0.01
 			if on_side and pos > s["a0"] and pos < s["a1"]:
 				var list: Array = doors.get(si, [])
 				list.append({"at": pos, "w": ed[2], "h": 2.4, "kind": "exterior"})
 				doors[si] = list
 				door_points["%d:exterior_%s" % [f + 1, side]] = _seg_point(s, pos, 0.0)
 	return doors
+
+
+func _stair_spec(name: String) -> Dictionary:
+	for s in SchoolLayout.STAIRS:
+		if s["name"] == name:
+			return s
+	return {}
+
+
+## 선분이 계단의 옆벽이면, 층계참 가운데의 선분 방향 좌표. 끝벽이면 NAN.
+func _landing_along(spec: Dictionary, r: Rect2, s: Dictionary) -> float:
+	if spec.is_empty():
+		return NAN
+	var axis: String = spec["axis"]
+	if s["axis"] != axis:
+		return NAN   # 계단의 끝벽: 문은 벽 가운데
+	match String(spec["near"]):
+		"S":
+			return r.end.y - LANDING / 2.0
+		"N":
+			return r.position.y + LANDING / 2.0
+		"E":
+			return r.end.x - LANDING / 2.0
+		_:
+			return r.position.x + LANDING / 2.0
+
+
+## 계단을 한 층 오르는 길 (월드 점들): 층계참 → 첫 줄 → 먼 쪽 참 → 둘째 줄 → 위층 층계참
+func stair_route(name: String, floor: int) -> Array:
+	var spec := _stair_spec(name)
+	var r: Rect2 = room_rect(floor, name)
+	var axis: String = spec["axis"]
+	var near: String = spec["near"]
+	var length := r.size.y if axis == "z" else r.size.x
+	var width := r.size.x if axis == "z" else r.size.y
+	var half := (width - 0.2) / 2.0
+	var far := LANDING + STEP_N * minf((length - 2.0 * LANDING) / STEP_N, 0.3)
+	var y := (floor - 1) * SchoolLayout.FLOOR_H
+	var pts: Array = []
+	for uv in [[0.75, half / 2.0], [far + 0.5, half / 2.0], [far + 0.5, half + 0.2 + half / 2.0], [0.75, half + 0.2 + half / 2.0], [0.75, half / 2.0]]:
+		var u: float = uv[0]
+		var v: float = uv[1]
+		var p := Vector3.ZERO
+		match near:
+			"S":
+				p = Vector3(r.position.x + v, y, r.end.y - u)
+			"N":
+				p = Vector3(r.end.x - v, y, r.position.y + u)
+			"E":
+				p = Vector3(r.end.x - u, y, r.position.y + v)
+			_:
+				p = Vector3(r.position.x + u, y, r.end.y - v)
+		pts.append(p)
+	return pts
+
+
+## 층(1..5)에서 이름이 같은 첫 방의 사각형
+func room_rect(floor: int, name: String) -> Rect2:
+	for room in floors_rooms[floor - 1]:
+		if room["name"] == name:
+			return room["srect"]
+	return Rect2()
 
 
 func _side_of(sr: Rect2, s: Dictionary) -> String:
@@ -706,35 +782,58 @@ func _merge_rects(names: PackedStringArray) -> Array:
 	return out
 
 
-func _build_roof() -> void:
-	var top := SchoolLayout.FLOORS - 1
-	var rooms: Array = floors_rooms[top]
-	var grid: PackedInt32Array = grids[top]
+## 층 f의 실내 칸 중 바로 위층이 바깥(테라스 제외)인 곳에 지붕판 (맨 위층, 별관·특별교실동 위 등)
+func _build_roof(f: int) -> void:
+	var rooms: Array = floors_rooms[f]
+	var grid: PackedInt32Array = grids[f]
+	var above_rooms: Array = floors_rooms[f + 1] if f + 1 < SchoolLayout.FLOORS else []
+	var above_grid: PackedInt32Array = grids[f + 1] if f + 1 < SchoolLayout.FLOORS else PackedInt32Array()
 	var names := PackedStringArray()
 	names.resize(NX * NZ)
+	var any := false
 	for idx in NX * NZ:
 		var k := _kind(rooms, grid[idx])
-		names[idx] = "" if k in OUTDOOR else "roof"
+		var ka := "out" if above_grid.is_empty() else _kind(above_rooms, above_grid[idx])
+		if k in OUTDOOR or not (ka in ["out", "void", "court"]):
+			names[idx] = ""
+		else:
+			names[idx] = "roof"
+			any = true
+	if not any:
+		return
 	var mb := MeshBatch.new()
 	var body := StaticBody3D.new()
 	var root := Node3D.new()
-	root.name = "Roof"
+	root.name = "Roof%d" % (f + 1)
 	add_child(root)
 	root.add_child(body)
 	var ctx := {"body": body}
-	var y := SchoolLayout.FLOORS * SchoolLayout.FLOOR_H
+	var y := (f + 1) * SchoolLayout.FLOOR_H
 	for r in _merge_rects(names):
 		var rect: Rect2 = r[0]
 		var c := Vector3(rect.get_center().x, y + 0.14, rect.get_center().y)
 		mb.add_box(mats["slab_edge"], c, Vector3(rect.size.x + 0.3, 0.32, rect.size.y + 0.3))
 		_col(ctx, c, Vector3(rect.size.x, 0.32, rect.size.y))
-	# 별관 1층: 기둥 (2층 식당 아래는 트인 필로티)
+	mb.commit(root, "Mesh")
+
+
+## 별관 1층: 기둥 (2층 식당 아래는 트인 필로티)
+func _build_pillars() -> void:
+	var mb := MeshBatch.new()
+	var body := StaticBody3D.new()
+	var root := Node3D.new()
+	root.name = "Pillars"
+	add_child(root)
+	root.add_child(body)
+	var ctx := {"body": body}
 	var an := SchoolLayout.ANNEX
-	for x in [an.position.x + 0.3, an.position.x + an.size.x / 2.0]:
-		for z in range(int(an.position.y) + 1, int(an.end.y), 8):
-			var c := Vector3(x, SchoolLayout.FLOOR_H / 2.0, float(z))
-			mb.add_box(mats["slab_edge"], c, Vector3(0.5, SchoolLayout.FLOOR_H, 0.5))
-			_col(ctx, c, Vector3(0.5, SchoolLayout.FLOOR_H, 0.5))
+	var nx := int(an.size.x / 8.1)
+	var nz := int(an.size.y / 8.0)
+	for i in nx + 1:
+		for j in nz + 1:
+			var c := Vector3(an.position.x + 0.3 + i * (an.size.x - 0.6) / nx, SchoolLayout.FLOOR_H / 2.0, an.position.y + 0.3 + j * (an.size.y - 0.6) / nz)
+			mb.add_box(mats["slab_edge"], c, Vector3(0.6, SchoolLayout.FLOOR_H, 0.6))
+			_col(ctx, c, Vector3(0.6, SchoolLayout.FLOOR_H, 0.6))
 	mb.commit(root, "Mesh")
 
 
@@ -771,7 +870,8 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 	var near: String = spec["near"]
 	var length := sr.size.y if axis == "z" else sr.size.x
 	var width := sr.size.x if axis == "z" else sr.size.y
-	var run := (length - 2.0 * LANDING) / STEP_N
+	var run := minf((length - 2.0 * LANDING) / STEP_N, 0.3)
+	var far := LANDING + STEP_N * run          # 먼 쪽 참이 시작하는 곳
 	var rise := SchoolLayout.FLOOR_H / (2.0 * STEP_N)
 	var half := (width - 0.2) / 2.0
 	# 로컬 (u: 가까운 끝에서 먼 끝으로, v: 가로) → 월드
@@ -800,7 +900,7 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 	if f >= SchoolLayout.FLOORS - 1:
 		return
 	# 먼 끝 중간 참
-	box.call(length - LANDING, length, 0.0, width, y + 1.8 - 0.25, y + 1.8, mats["stair"], true)
+	box.call(far, length, 0.0, width, y + 1.8 - 0.25, y + 1.8, mats["stair"], true)
 	# 첫 줄 (v 0..half): 가까운 끝 → 먼 끝으로 올라간다. 둘째 줄 (v half+0.2..width): 먼 끝 → 가까운 끝
 	for k in STEP_N:
 		var top1 := y + (k + 1) * rise
@@ -808,7 +908,7 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 		box.call(u0, u0 + run, 0.0, half, top1 - 0.3, top1, mats["stair"], true)
 		box.call(u0, u0 + 0.04, 0.0, half, top1 - 0.004, top1 + 0.004, mats["rail"], false)
 		var top2 := y + 1.8 + (k + 1) * rise
-		var u1 := length - LANDING - (k + 1) * run
+		var u1 := far - (k + 1) * run
 		box.call(u1, u1 + run, half + 0.2, width, top2 - 0.3, top2, mats["stair"], true)
 		box.call(u1 + run - 0.04, u1 + run, half + 0.2, width, top2 - 0.004, top2 + 0.004, mats["rail"], false)
 	# 두 줄 사이 난간: 철제 살 + 나무 손잡이 (충돌은 판 하나)
@@ -818,9 +918,9 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 		var y1 := y + k * rise
 		var y2 := y + 1.8 + (STEP_N - k) * rise
 		box.call(u - 0.02, u + 0.02, v_mid - 0.02, v_mid + 0.02, y1, y2 + 0.95, mats["rail"], false)
-	box.call(LANDING, length - LANDING, v_mid - 0.08, v_mid + 0.08, y, y + 3.6 + 0.9, mats["rail"], false)
+	box.call(LANDING, far, v_mid - 0.08, v_mid + 0.08, y, y + 3.6 + 0.9, mats["rail"], false)
 	var a: Vector3 = to_w.call(LANDING, v_mid - 0.06, y)
-	var b: Vector3 = to_w.call(length - LANDING, v_mid + 0.06, y + 3.6 + 0.9)
+	var b: Vector3 = to_w.call(far, v_mid + 0.06, y + 3.6 + 0.9)
 	_col(ctx, (a + b) / 2.0, (b - a).abs())
 
 
@@ -830,8 +930,8 @@ func _furnish_class(ctx: Dictionary, room: Dictionary) -> void:
 	var mb: MeshBatch = ctx["mb"]
 	var y: float = ctx["y"]
 	var sr: Rect2 = room["srect"]
-	# 긴 축 = 복도와 나란한 방향. 칠판은 긴 축의 작은 쪽 끝 (북쪽 또는 서쪽)
-	var along_z := sr.size.y >= sr.size.x
+	# 칠판은 복도(문) 벽과 직각인 벽 (북쪽 또는 서쪽 끝). 문이 동·서쪽이면 칠판은 북쪽 벽
+	var along_z := String(room["door"]) in ["E", "W"]
 	var length := sr.size.y if along_z else sr.size.x
 	var width := sr.size.x if along_z else sr.size.y
 	var p := func(u: float, v: float, yy: float) -> Vector3:
