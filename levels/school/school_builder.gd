@@ -16,7 +16,7 @@ const NX := 244                 # (-60 .. 62) / 0.5
 const NZ := 130                 # (-1 .. 64) / 0.5
 const WALL_T := 0.2
 const EXT_T := 0.3
-const OUTDOOR := ["out", "void", "court", "terrace"]
+const OUTDOOR := ["out", "void", "court", "terrace", "path"]
 const STEP_N := 12              # 한 줄 계단 수 (층 높이 3.6 = 24 × 0.15)
 const LANDING := 1.5
 
@@ -345,6 +345,7 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 		var best_len := 0.0
 		var any_best := -1
 		var any_len := 0.0
+		var best_rank := 0
 		for si in segs.size():
 			var s: Dictionary = segs[si]
 			var other := -1
@@ -354,8 +355,17 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				other = s["A"]
 			else:
 				continue
-			if _kind(rooms, other) != "corr":
+			# 복도 쪽 문이 먼저, 없으면 큰 방(식당·강당·주차장)이나 트인 공간 쪽
+			var ok_kind := _kind(rooms, other)
+			var rank := 2 if ok_kind == "corr" else (1 if ok_kind in ["hall", "open"] and kind != "hall" else 0)
+			if rank == 0 or rank < best_rank:
 				continue
+			if rank > best_rank:
+				best_rank = rank
+				best = -1
+				best_len = 0.0
+				any_best = -1
+				any_len = 0.0
 			var length: float = s["a1"] - s["a0"]
 			if length > any_len:
 				any_len = length
@@ -402,7 +412,7 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 			var s: Dictionary = segs[si]
 			var ka := _kind(rooms, s["A"])
 			var kb := _kind(rooms, s["B"])
-			if not ((ka == "out") != (kb == "out")):
+			if not ((ka in OUTDOOR) != (kb in OUTDOOR)):
 				continue
 			var on_side := false
 			if side.begins_with("x=") or side.begins_with("z="):
@@ -688,10 +698,10 @@ func _floor_mat(kind: String, name: String) -> String:
 		"toilet":
 			return "floor_toilet"
 		"open":
-			return "floor_wood" if name.begins_with("미디어") or name == "홈베이스" else "floor_corr"
+			return "floor_wood" if name.begins_with("Media") or name.begins_with("포켓") else "floor_corr"
 		"eps", "ev":
 			return "floor_conc"
-		"terrace":
+		"terrace", "path":
 			return "terrace"
 		"court":
 			return "grass"
@@ -829,8 +839,8 @@ func _build_pillars() -> void:
 	var an := SchoolLayout.ANNEX
 	var nx := int(an.size.x / 8.1)
 	var nz := int(an.size.y / 8.0)
-	for i in nx + 1:
-		for j in nz + 1:
+	for i in range(1, nx):
+		for j in range(1, nz):
 			var c := Vector3(an.position.x + 0.3 + i * (an.size.x - 0.6) / nx, SchoolLayout.FLOOR_H / 2.0, an.position.y + 0.3 + j * (an.size.y - 0.6) / nz)
 			mb.add_box(mats["slab_edge"], c, Vector3(0.6, SchoolLayout.FLOOR_H, 0.6))
 			_col(ctx, c, Vector3(0.6, SchoolLayout.FLOOR_H, 0.6))
@@ -947,8 +957,8 @@ func _furnish_class(ctx: Dictionary, room: Dictionary) -> void:
 	_col(ctx, p.call(1.3, width / 2.0, y + 0.55), sz.call(0.6, 1.0, 1.1))
 	# 연두색 허리벽 띠 (긴 벽 양쪽, 바닥에서 1.1 m) — 벽에 붙은 얇은 판
 	for v in [0.11, width - 0.11]:
-		mb.add_box(mats["wall_green"], p.call(length / 2.0, v, y + 0.6), sz.call(length - 0.3, 0.012, 1.0))
-	mb.add_box(mats["wall_green"], p.call(length - 0.11, width / 2.0, y + 0.6), sz.call(0.012, width - 0.3, 1.0))
+		mb.add_box(mats["wall_green"], p.call(length / 2.0, v, y + 0.45), sz.call(length - 0.3, 0.012, 0.8))
+	mb.add_box(mats["wall_green"], p.call(length - 0.11, width / 2.0, y + 0.45), sz.call(0.012, width - 0.3, 0.8))
 	# 책상·의자: 2인 짝, 가로 3짝 × 세로 6줄
 	var rows := int((length - 3.0) / 1.05)
 	for r in rows:
@@ -969,7 +979,7 @@ func _furnish_open(ctx: Dictionary, room: Dictionary) -> void:
 	var y: float = ctx["y"]
 	var sr: Rect2 = room["srect"]
 	var name := String(room["name"])
-	if not (name.begins_with("미디어") or name == "홈베이스"):
+	if not (name.begins_with("Media") or name.begins_with("포켓")):
 		return
 	# 사물함 줄 (아이보리 위칸 + 파란 아래칸), 마루 단 의자
 	var along_z := sr.size.y >= sr.size.x

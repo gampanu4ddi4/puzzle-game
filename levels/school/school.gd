@@ -8,7 +8,7 @@
 extends Node3D
 
 const PLAYER_SCRIPT := preload("res://core/player/player.gd")
-const SPAWN := Vector3(14.85, 0.05, 66.0)
+const SPAWN := Vector3(29.0, 0.05, 66.0)
 
 var builder: SchoolBuilder
 var player: CharacterBody3D
@@ -180,9 +180,10 @@ func _tour_list() -> Array:
 	var out: Array = [
 		["00_front", Vector3(20.0, 1.7, 85.0), Vector3(25.0, 6.0, 30.0)],
 		["00_aerial", Vector3(-70.0, 55.0, 95.0), Vector3(0.0, 5.0, 25.0)],
-		["01_lobby", Vector3(14.85, 1.6, 60.3), Vector3(14.85, 1.4, 45.0)],
+		["01_lobby", Vector3(19.0, 1.6, 56.5), Vector3(8.0, 1.2, 56.5)],
 		["01_court", Vector3(29.5, 1.6, 56.0), Vector3(29.5, 6.0, 14.0)],
-		["01_annex_pilotis", Vector3(-20.0, 1.6, 20.0), Vector3(-50.0, 1.4, 12.0)],
+		["01_parking", Vector3(-36.0, 1.6, 12.2), Vector3(-55.0, 1.0, 22.0)],
+		["01_north_gap", Vector3(29.0, 1.6, 20.0), Vector3(29.0, 1.6, 0.0)],
 	]
 	for f in range(1, 6):
 		var y := (f - 1) * SchoolLayout.FLOOR_H + 1.6
@@ -193,7 +194,7 @@ func _tour_list() -> Array:
 	var y4 := 3 * SchoolLayout.FLOOR_H
 	out.append(["4_class_2-7_back", Vector3(c27.end.x - 1.0, y4 + 1.6, c27.end.y - 0.6), Vector3(c27.position.x + 2.0, y4 + 0.6, c27.position.y)])
 	out.append(["4_class_2-7_front", Vector3(c27.position.x + 0.8, y4 + 1.6, c27.position.y + 0.6), Vector3(c27.end.x - 2.0, y4 + 0.6, c27.end.y)])
-	var md := builder.room_rect(4, "미디어스페이스")
+	var md := builder.room_rect(4, "Media Space")
 	out.append(["4_media", Vector3(wc - 1.0, y4 + 1.6, md.position.y + 1.0), Vector3(md.end.x, y4 + 0.6, md.end.y - 4.0)])
 	out.append(["3_court_view", Vector3(wc, 2 * SchoolLayout.FLOOR_H + 1.6, nc), Vector3(29.5, 3.0, 35.0)])
 	out.append(["2_dining", Vector3(-27.0, SchoolLayout.FLOOR_H + 1.6, 10.5), Vector3(-50.0, SchoolLayout.FLOOR_H + 0.8, 20.0)])
@@ -228,17 +229,17 @@ func _test_perf() -> void:
 		print("perf %s  fps=%d  draw_calls=%d" % [s[0], Engine.get_frames_per_second(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
 
 
-## 정문 → 남쪽 연결복도 → 계단 A남 → 5층까지 걸어 올라간다 (계단 이어짐 확인)
+## 중정 남쪽 → 정문(A동 홀) → 서복도 → 계단 A남 → 5층까지 걸어 올라간다 (계단 이어짐 확인)
 func _test_climb(out: String) -> void:
 	var door: Vector3 = builder.door_points.get("1:계단 A남", Vector3.ZERO)
 	print("stair door (1층 계단 A남): ", door)
-	await _walk([Vector3(14.85, 0, 60.3), Vector3(door.x + 1.5, 0, 60.3), Vector3(door.x + 1.5, 0, door.z), Vector3(door.x - 0.6, 0, door.z)])
+	await _walk([Vector3(18.0, 0, 60.0), Vector3(18.0, 0, 56.5), Vector3(13.0, 0, 56.5), Vector3(9.0, 0, 56.5), Vector3(9.0, 0, door.z), Vector3(door.x - 0.6, 0, door.z)])
 	await _save(out.path_join("c0_stair_door.png"))
 	for f in range(1, 5):
 		var ok := await _walk(builder.stair_route("계단 A남", f), 30.0)
 		var info := builder.room_at(player.global_position + Vector3(0, 0.5, 0))
 		print("climb: after flight pair %d -> %d층 %s  y=%.2f %s" % [f, info[0], info[1], player.global_position.y, "OK" if ok else "STUCK"])
-	await _walk([Vector3(door.x + 1.5, 0, door.z), Vector3(door.x + 1.5, 0, 35.0)])
+	await _walk([Vector3(9.0, 0, door.z), Vector3(9.0, 0, 35.0)])
 	var p := player.global_position
 	print("climb end: %s  %s" % [p, builder.room_at(p + Vector3(0, 0.5, 0))])
 	await _save(out.path_join("c1_5f_corridor.png"))
@@ -246,7 +247,7 @@ func _test_climb(out: String) -> void:
 	var door_b: Vector3 = builder.door_points.get("5:계단 B북", Vector3.ZERO)
 	print("stair door (5층 계단 B북): ", door_b)
 	var sc := (SchoolLayout.Z_SC.x + SchoolLayout.Z_SC.y) / 2.0
-	await _walk([Vector3(door.x + 1.5, 0, sc), Vector3(door_b.x - 1.5, 0, sc), Vector3(door_b.x - 1.5, 0, door_b.z), Vector3(door_b.x + 0.6, 0, door_b.z)], 40.0)
+	await _walk([Vector3(9.0, 0, sc), Vector3(door_b.x - 1.5, 0, sc), Vector3(door_b.x - 1.5, 0, door_b.z), Vector3(door_b.x + 0.6, 0, door_b.z)], 40.0)
 	var down := builder.stair_route("계단 B북", 4)
 	down.reverse()
 	var ok := await _walk(down, 30.0)
