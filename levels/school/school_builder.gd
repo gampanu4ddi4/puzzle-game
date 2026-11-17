@@ -45,6 +45,16 @@ func build() -> void:
 		_build_roof(f)
 	_build_pillars()
 	_build_ground()
+	# 문이 없는 방 (들어갈 수 없는 방) 목록
+	var sealed: Array = []
+	for f in SchoolLayout.FLOORS:
+		for room in floors_rooms[f]:
+			if String(room["kind"]) in ["corr", "open", "closed", "void", "court", "eps", "out", "terrace", "path"] or String(room["name"]).begins_with("("):
+				continue
+			if not door_points.has("%d:%s" % [f + 1, room["name"]]):
+				sealed.append("%d층 %s" % [f + 1, room["name"]])
+	if not sealed.is_empty():
+		print("rooms without door: ", sealed)
 	var boxes := 0
 	for k in stats:
 		boxes += stats[k]
@@ -358,6 +368,10 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 			# 복도 쪽 문이 먼저, 없으면 큰 방(식당·강당·주차장)이나 트인 공간 쪽
 			var ok_kind := _kind(rooms, other)
 			var rank := 2 if ok_kind == "corr" else (1 if ok_kind in ["hall", "open", "path"] and kind != "hall" else 0)
+			if rank == 0 and kind == "room" and ok_kind == "class":
+				rank = 1   # 복도에 닿지 않는 준비실 등: 옆 교실(실험실)로 통하는 문
+			if rank > 0 and float(room.get("frac", -1.0)) >= 0.0 and _side_of(sr, s) == room["door"]:
+				rank = 3   # 피난안내도에서 읽은 문: 지정한 벽
 			if rank == 0 or rank < best_rank:
 				continue
 			if rank > best_rank:
@@ -400,7 +414,16 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 			"ev":
 				list.append({"at": (a0 + a1) / 2.0, "w": 1.2, "h": 2.1, "kind": kind})
 			_:
-				list.append({"at": (a0 + a1) / 2.0, "w": 0.95, "h": 2.1, "kind": kind})
+				var at := (a0 + a1) / 2.0
+				var frac := float(room.get("frac", -1.0))
+				if frac >= 0.0:
+					# 방의 벽 길이에서 frac 자리, 선분 안으로 (문틀 여유 0.6 m)
+					var r0 := sr.position.x if s["axis"] == "x" else sr.position.y
+					var r1 := sr.end.x if s["axis"] == "x" else sr.end.y
+					var lo := maxf(a0, r0) + 0.6
+					var hi := minf(a1, r1) - 0.6
+					at = clampf(lerpf(r0, r1, frac), lo, hi) if hi > lo else (a0 + a1) / 2.0
+				list.append({"at": at, "w": 0.95, "h": 2.1, "kind": kind})
 		doors[best] = list
 		var d: Dictionary = list[0]
 		door_points["%d:%s" % [f + 1, room["name"]]] = _seg_point(s, d["at"], f * SchoolLayout.FLOOR_H)

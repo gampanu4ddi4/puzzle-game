@@ -89,10 +89,9 @@ static func rooms(floor: int) -> Array:
 	var east_col := Rect2(ANNEX_EAST, 0.0, ANNEX.end.x - ANNEX_EAST, ANNEX.size.y)
 	match floor:
 		1:
-			out.append(_r("연결복도", LINK, "corr", ""))
-			out.append_array(_stack(Rect2(west.position.x, 0.0, west.size.x, 6.0), "x", "S", [["음식물수거실", 1.0, "room"], ["창고", 1.0, "room"], ["화장실", 1.0, "toilet"]]))
-			out.append(_r("주차장", Rect2(west.position.x, 6.0, west.size.x, west.size.y - 6.0), "path", ""))
-			out.append_array(_stack(east_col, "z", "W", [["재활용창고", -10.4, "room", "S"], ["별관 1층 홀", -3.6, "corr"], ["장애인화장실", 1.0, "toilet", "N"]]))
+			# 별관 1층은 바깥 주차장. 북쪽 끝에 수거실·창고만 있다 (주차장 쪽으로 문)
+			out.append_array(_stack(Rect2(ANNEX.position.x, 0.0, ANNEX.size.x, 6.0), "x", "S", [["음식물수거실", 1.0, "room"], ["창고", 1.0, "room"], ["화장실", 1.0, "toilet"], ["재활용창고", 1.0, "room"]]))
+			out.append(_r("주차장", Rect2(ANNEX.position.x, 6.0, ANNEX.size.x, ANNEX.size.y - 6.0), "path", ""))
 		2:
 			out.append(_r("연결복도", LINK, "corr", ""))
 			out.append_array(_stack(Rect2(west.position.x, 0.0, west.size.x, 9.0), "x", "S", [["세척실", 1.0, "room"], ["보일러실", 1.0, "room"], ["조리실", 1.6, "room"], ["영양사실", 0.8, "room"], ["휴게실", 0.8, "room"], ["전처리실", 1.0, "room"]]))
@@ -110,20 +109,22 @@ static func rooms(floor: int) -> Array:
 static func exterior_doors(floor: int) -> Array:
 	if floor == 1:
 		return [
-			["x=%f" % X_WI.y, 56.5, 2.4],          # 정문: A동 홀에서 중정 남쪽으로
-			["x=%f" % X_EI.x, 56.5, 2.0],          # B동 출입구
+			["x=%f" % X_WI.y, 57.8, 2.4],          # 정문: A동 홀에서 중정 남쪽으로
+			["x=%f" % X_EI.x, 57.8, 2.0],          # B동 출입구
+			["W", (Z_NC.x + Z_NC.y) / 2.0, 2.0],   # 북복도 서쪽 끝 (주차장 쪽)
 			["x=%f" % GAP_1F.x, 12.2, 2.0],        # 북쪽 바깥 통로 양쪽
 			["x=%f" % GAP_1F.y, 12.2, 2.0],
 		]
 	return []
 
 
-static func _r(name: String, rect: Rect2, kind: String, door: String) -> Dictionary:
-	return {"name": name, "rect": rect, "kind": kind, "door": door}
+## frac: 문 위치 (문이 난 벽에서 방의 북쪽/서쪽 끝 0 ~ 남쪽/동쪽 끝 1). 음수면 벽 가운데.
+static func _r(name: String, rect: Rect2, kind: String, door: String, frac := -1.0) -> Dictionary:
+	return {"name": name, "rect": rect, "kind": kind, "door": door, "frac": frac}
 
 
 ## 한 줄(rect)을 axis 방향으로 나눈다. item: [이름, 크기, 종류] — 크기가 음수면 고정 길이(-크기), 양수면 비율.
-## 이름에 "|"가 있으면 가로로 둘로 나눈다 (예: "EPS|E/V"). 문 방향을 바꾸려면 item[3].
+## 이름에 "|"가 있으면 가로로 둘로 나눈다 (예: "EPS|E/V"). 문 방향을 바꾸려면 item[3], 문 위치는 item[4] (frac).
 static func _stack(area: Rect2, axis: String, door: String, items: Array) -> Array:
 	var total := area.size.x if axis == "x" else area.size.y
 	var fixed := 0.0
@@ -141,7 +142,8 @@ static func _stack(area: Rect2, axis: String, door: String, items: Array) -> Arr
 		var s: float = it[1]
 		var seg := -s if s < 0.0 else s * per
 		var r := Rect2(at, area.position.y, seg, area.size.y) if axis == "x" else Rect2(area.position.x, at, area.size.x, seg)
-		var d: String = it[3] if it.size() > 3 else door
+		var d: String = it[3] if it.size() > 3 and it[3] != "" else door
+		var frac: float = it[4] if it.size() > 4 else -1.0
 		var name: String = it[0]
 		if "|" in name:
 			var parts := name.split("|")
@@ -158,7 +160,7 @@ static func _stack(area: Rect2, axis: String, door: String, items: Array) -> Arr
 				out.append(_r(parts[0], Rect2(r.position.x, r.end.y - d1, r.size.x, d1), kinds[0], door))
 				out.append(_r(parts[1], Rect2(r.position.x, r.position.y, r.size.x, r.size.y - d1), kinds[1], "W"))
 		else:
-			out.append(_r(name, r, it[2], d))
+			out.append(_r(name, r, it[2], d, frac))
 		at += seg
 	return out
 
@@ -169,7 +171,8 @@ const C := -CLASS_LEN
 
 ## 북쪽 줄 서쪽 (A북 계단 서쪽, x 0..11.9)
 static func _no_left(f: int) -> Array:
-	return [[["특수교실", 1.0, "room"]], [["1-1", 1.0, "class"]], [["교실", 1.0, "class"]], [["교실", 1.0, "class"]], [["교실", 1.0, "class"]]][f - 1]
+	var small := ["교사실", 1.0, "room", "S", 0.2]
+	return [[["특수교실", -7.7, "room", "S", 0.8], small], [["1-1", -7.7, "class"], small], [["교실", -7.7, "class"], small], [["교실", -7.7, "class"], small], [["교실", -7.7, "class"], small]][f - 1]
 
 
 ## 북쪽 줄 동쪽 (x 15.4..59.7, 44.3 m). 맨 앞은 승강기
@@ -182,65 +185,65 @@ static func _no_right(f: int) -> Array:
 		3:
 			return [["E/V", -2.5, "ev"], ["화장실(교사)", -3.0, "toilet"], ["컴퓨터실", 1.0, "class"], ["다목적1실", 1.0, "class"], ["다목적2실", 1.0, "class"]]
 		4:
-			return [["E/V", -2.5, "ev"], ["화장실(교사)", -3.0, "toilet"], ["과학1실", 1.0, "class"], ["준비실", 0.45, "room"], ["과학2실", 1.0, "class"], ["과학3실", 1.0, "class"], ["준비실", 0.45, "room"]]
+			return [["E/V", -2.5, "ev"], ["화장실(교사)", -3.0, "toilet"], ["과학1실", 1.0, "class"], ["준비실", 0.45, "room", "S", 0.2], ["과학2실", 1.0, "class"], ["과학3실", 1.0, "class"], ["준비실", 0.45, "room", "S", 0.15]]
 		_:
-			return [["E/V", -2.5, "ev"], ["화장실(교사)", -3.0, "toilet"], ["공용교실-1", 1.0, "class"], ["공용교실-2", 1.0, "class"], ["스마트과학실", 1.0, "class"], ["준비실", 0.4, "room"]]
+			return [["E/V", -2.5, "ev"], ["화장실(교사)", -3.0, "toilet"], ["공용교실-1", 1.0, "class"], ["공용교실-2", 1.0, "class"], ["스마트과학실", 1.0, "class"], ["준비실", 0.4, "room", "S", 0.15]]
 
 
 static func _wo(f: int) -> Array:
 	match f:
 		1:
-			return [["상담실", 4.0, "room"], ["고정실", 3.0, "room"], ["교장실", 6.0, "room"], ["탕비실", 2.0, "room"], ["문서고", 2.0, "room"], ["행정실", 7.0, "room"], ["방송실", 4.0, "room"], ["스튜디오", 4.0, "room"], ["하부 창고", 2.0, "room"]]
+			return [["상담실", 4.0, "room", "", 0.15], ["고정실", 3.0, "room", "", 0.8], ["교장실", 6.0, "room", "", 0.15], ["탕비실", 2.0, "room", "", 0.5], ["문서고", 2.0, "room", "", 0.5], ["행정실", 7.0, "room", "", 0.85], ["방송실", 4.0, "room", "", 0.8], ["스튜디오", 4.0, "room", "", 0.8], ["하부 창고", 2.0, "room", "", 0.5]]
 		2:
-			return [["1학년실", 6.0, "room"], ["1-2", C, "class"], ["1-3", C, "class"], ["1-4", C, "class"], ["1-5", C, "class"], ["세미나실", 3.4, "room"]]
+			return [["1학년실", 6.0, "room", "", 0.85], ["1-2", C, "class"], ["1-3", C, "class"], ["1-4", C, "class"], ["1-5", C, "class"], ["세미나실", 3.4, "room", "", 0.2]]
 		3:
-			return [["교무실", 6.0, "room"], ["1-10", C, "class"], ["1-11", C, "class"], ["1-12", C, "class"], ["교실", C, "class"], ["휴게실(여)", 3.4, "room"]]
+			return [["교무실", 6.0, "room", "", 0.85], ["1-10", C, "class"], ["1-11", C, "class"], ["1-12", C, "class"], ["교실", C, "class"], ["휴게실(여)", 3.4, "room", "", 0.2]]
 		4:
-			return [["교사연구실", 6.0, "room"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["휴게실(남)", 3.4, "room"]]
+			return [["교사연구실", 6.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["휴게실(남)", 3.4, "room", "", 0.2]]
 		_:
-			return [["교사연구실", 6.0, "room"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["세미나실", 3.4, "room"]]
+			return [["교사연구실", 6.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["세미나실", 3.4, "room", "", 0.2]]
 
 
 static func _wi(f: int) -> Array:
 	var top := ["EPS|E/V", -4.0, "eps|ev"]
-	var wc := [["화장실(여)", -6.0, "toilet"], ["화장실(남)", -6.0, "toilet"]]
+	var wc := [["화장실(여)", -6.0, "toilet", "", 0.15], ["화장실(남)", -6.0, "toilet", "", 0.15]]
 	match f:
 		1:
-			return [top, ["창고", -4.0, "room"], wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["운영위원회의실", 3.0, "room"], ["전산실", 2.0, "room"], ["발간실", 2.0, "room"], ["홀", 4.0, "open"]]
+			return [top, ["창고", -4.0, "room", "", 0.8], wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["운영위원회의실", 3.0, "room", "", 0.15], ["전산실", 2.0, "room", "", 0.85], ["발간실", 2.0, "room", "", 0.1], ["홀", 4.0, "open"]]
 		2:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 1.5, "room"], ["체력단련실", 1.5, "room"]]
+			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 1.5, "room", "", 0.2], ["체력단련실", 1.5, "room", "", 0.5]]
 		3:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room"]]
+			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
 		4:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 2.0, "room"]]
+			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 2.0, "room", "N", 0.8]]
 		_:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room"]]
+			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
 
 
 static func _ei(f: int) -> Array:
 	match f:
 		1:
-			return [["보건교육실", 5.0, "room"], ["위클래스실", 6.0, "room"], ["준비실", 3.0, "room"], ["미술실", 10.0, "class"], ["출입구", 3.0, "open"]]
+			return [["보건교육실", 5.0, "room", "", 0.1], ["위클래스실", 6.0, "room", "", 0.85], ["준비실", 3.0, "room", "", 0.85], ["미술실", 10.0, "class"], ["출입구", 3.0, "open"]]
 		2:
-			return [["제1교무실", 1.0, "room"], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room"]]
+			return [["제1교무실", 1.0, "room", "", 0.85], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room", "", 0.3]]
 		3:
-			return [["제2교무실", 1.0, "room"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room"]]
+			return [["제2교무실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		4:
-			return [["교사연구실", 1.0, "room"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room"]]
+			return [["교사연구실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		_:
-			return [["교사연구실", 1.0, "room"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
+			return [["교사연구실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
 
 
 static func _eo(f: int) -> Array:
-	var wc := [["화장실(남)", -4.0, "toilet"], ["화장실(여)", -4.0, "toilet"]]
+	var wc := [["화장실(남)", -4.0, "toilet", "", 0.2], ["화장실(여)", -4.0, "toilet", "", 0.2]]
 	match f:
 		1:
-			return [["창고", 2.0, "room"], wc[0], wc[1], ["진로교육 전용공간", 3.0, "room"], ["포켓쉼터", 2.0, "open"], ["기술/가정 이론교실", 5.0, "class"], ["준비실", 2.0, "room"], ["창고", 2.0, "room"]]
+			return [["창고", 2.0, "room", "", 0.5], wc[0], wc[1], ["진로교육 전용공간", 3.0, "room", "", 0.85], ["포켓쉼터", 2.0, "open"], ["기술/가정 이론교실", 5.0, "class"], ["준비실", 2.0, "room", "", 0.2], ["창고", 2.0, "room", "", 0.2]]
 		2:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room"]]
+			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		3:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room"]]
+			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
 		4:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room"]]
+			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		_:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room"]]
+			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
