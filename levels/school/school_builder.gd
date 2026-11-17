@@ -357,7 +357,7 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				continue
 			# 복도 쪽 문이 먼저, 없으면 큰 방(식당·강당·주차장)이나 트인 공간 쪽
 			var ok_kind := _kind(rooms, other)
-			var rank := 2 if ok_kind == "corr" else (1 if ok_kind in ["hall", "open"] and kind != "hall" else 0)
+			var rank := 2 if ok_kind == "corr" else (1 if ok_kind in ["hall", "open", "path"] and kind != "hall" else 0)
 			if rank == 0 or rank < best_rank:
 				continue
 			if rank > best_rank:
@@ -701,8 +701,10 @@ func _floor_mat(kind: String, name: String) -> String:
 			return "floor_wood" if name.begins_with("Media") or name.begins_with("포켓") else "floor_corr"
 		"eps", "ev":
 			return "floor_conc"
-		"terrace", "path":
+		"terrace":
 			return "terrace"
+		"path":
+			return "floor_conc"
 		"court":
 			return "grass"
 		"hall":

@@ -8,7 +8,8 @@
 ##   z:  북쪽 줄 0..10.4 | 북복도 10.4..14.0 | 가운데 14.0..58.5 | 남쪽 연결복도 58.5..61.8 (3~5층만)
 ##   1·2층에는 남쪽 연결복도가 없어 중정이 남쪽으로 열려 있다. 1층은 북쪽 줄 가운데(x 25.6..32.4)가 바깥 통로라
 ##   서쪽(A동)과 동쪽(B동)이 1층에서는 따로 떨어져 있다.
-##   별관 32.4 × 26.4 m: x -57.9..-25.5, z 0..26.4. 1층 주차장, 2층 식당·조리실, 3층 다목적강당·음악실, 위는 옥상.
+##   별관 32.4 × 26.4 m: x -57.9..-25.5, z 0..26.4. 1층은 2층 바닥 아래의 바깥 주차장(기둥만),
+##   2층 식당·조리실, 3층 다목적강당·음악실. 위는 옥상이지만 4층에서 들어갈 수 없다.
 ##   본관과 별관은 북복도 높이의 연결복도(x -25.5..0)로 잇는다.
 ##
 ## 방 종류(kind):
@@ -46,7 +47,7 @@ const GAP_1F := Vector2(25.6, 32.4)   # 1층 북쪽 줄 가운데 바깥 통로
 const STAIRS := [
 	{"name": "계단 A북", "rect": Rect2(11.9, 0.0, 3.5, 10.4), "axis": "z", "near": "S", "door": "S"},
 	{"name": "계단 A남", "rect": Rect2(0.0, 55.8, 7.7, 6.0), "axis": "x", "near": "E", "door": "E"},
-	{"name": "계단 B북", "rect": Rect2(52.1, 14.0, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 B북", "rect": Rect2(52.1, 8.0, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
 	{"name": "계단 B남", "rect": Rect2(52.1, 55.8, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
 ]
 
@@ -76,7 +77,7 @@ static func rooms(floor: int) -> Array:
 	out.append_array(_stack(Rect2(X_WI.x, Z_MID.x, X_WI.y - X_WI.x, Z_MID.y - Z_MID.x), "z", "W", _wi(floor)))
 	out.append_array(_stack(Rect2(X_EI.x, Z_MID.x, X_EI.y - X_EI.x, Z_MID.y - Z_MID.x), "z", "E", _ei(floor)))
 	# 동쪽 바깥 줄 EO (B북 계단 아래 ~ B남 계단 위)
-	out.append_array(_stack(Rect2(X_EO.x, 20.0, X_EO.y - X_EO.x, 55.8 - 20.0), "z", "W", _eo(floor)))
+	out.append_array(_stack(Rect2(X_EO.x, Z_NC.y, X_EO.y - X_EO.x, 55.8 - Z_NC.y), "z", "W", _eo(floor)))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
 		out.append(_r(s["name"], s["rect"], "stair", s["door"]))
@@ -90,7 +91,7 @@ static func rooms(floor: int) -> Array:
 		1:
 			out.append(_r("연결복도", LINK, "corr", ""))
 			out.append_array(_stack(Rect2(west.position.x, 0.0, west.size.x, 6.0), "x", "S", [["음식물수거실", 1.0, "room"], ["창고", 1.0, "room"], ["화장실", 1.0, "toilet"]]))
-			out.append(_r("주차장", Rect2(west.position.x, 6.0, west.size.x, west.size.y - 6.0), "hall", "E"))
+			out.append(_r("주차장", Rect2(west.position.x, 6.0, west.size.x, west.size.y - 6.0), "path", ""))
 			out.append_array(_stack(east_col, "z", "W", [["재활용창고", -10.4, "room", "S"], ["별관 1층 홀", -3.6, "corr"], ["장애인화장실", 1.0, "toilet", "N"]]))
 		2:
 			out.append(_r("연결복도", LINK, "corr", ""))
@@ -102,9 +103,6 @@ static func rooms(floor: int) -> Array:
 			out.append(_r("다목적강당", Rect2(west.position.x, 0.0, west.size.x, west.size.y - 4.0), "hall", "E"))
 			out.append_array(_stack(Rect2(west.position.x, west.size.y - 4.0, west.size.x, 4.0), "x", "N", [["기구창고", 1.0, "room"], ["탈의실(남)", 1.0, "room"], ["탈의실(여)", 1.0, "room"], ["교사실", 1.0, "room"], ["창고", 1.0, "room"]]))
 			out.append_array(_stack(east_col, "z", "W", [["음악실", -10.4, "class", "S"], ["별관 3층 홀", -3.6, "corr"], ["개인연습실", -4.0, "room", "N"], ["데크", 1.0, "terrace", "N"]]))
-		4:
-			out.append(_r("연결 테라스", LINK, "terrace", "E"))
-			out.append(_r("별관 옥상", ANNEX, "terrace", "E"))
 	return out
 
 
@@ -116,7 +114,6 @@ static func exterior_doors(floor: int) -> Array:
 			["x=%f" % X_EI.x, 56.5, 2.0],          # B동 출입구
 			["x=%f" % GAP_1F.x, 12.2, 2.0],        # 북쪽 바깥 통로 양쪽
 			["x=%f" % GAP_1F.y, 12.2, 2.0],
-			["z=%f" % ANNEX.end.y, -46.0, 5.0],    # 주차장 차량 출입구
 		]
 	return []
 
