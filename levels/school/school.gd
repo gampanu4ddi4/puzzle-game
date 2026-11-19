@@ -145,6 +145,8 @@ func _run_test(kind: String) -> void:
 			await _test_climb(out)
 		"perf":
 			await _test_perf()
+		"lightjump":
+			await _test_lightjump(out)
 	get_tree().quit()
 
 
@@ -211,6 +213,7 @@ func _tour_list() -> Array:
 	out.append(["d9_north_signs_5f", Vector3(44.0, 4 * SchoolLayout.FLOOR_H + 1.6, 13.5), Vector3(36.0, 4 * SchoolLayout.FLOOR_H + 2.3, 10.5)])
 	out.append(["d10_top_stair", Vector3(52.5, 4 * SchoolLayout.FLOOR_H + 1.7, 11.0), Vector3(57.0, 4 * SchoolLayout.FLOOR_H - 1.5, 15.0)])
 	out.append(["d11_sign_close", Vector3(40.0, 4 * SchoolLayout.FLOOR_H + 1.7, 13.2), Vector3(44.0, 4 * SchoolLayout.FLOOR_H + 2.4, 10.6)])
+	out.append(["d12_class_door_close", Vector3(10.6, 3 * SchoolLayout.FLOOR_H + 1.6, 22.0), Vector3(7.7, 3 * SchoolLayout.FLOOR_H + 1.2, 25.0)])
 	out.append(["4_west_end", Vector3(2.0, 3 * SchoolLayout.FLOOR_H + 1.6, 12.2), Vector3(-30.0, 3 * SchoolLayout.FLOOR_H - 2.0, 12.0)])
 	out.append(["1_parking_outside", Vector3(-41.0, 1.7, 34.0), Vector3(-41.0, 1.0, 10.0)])
 	return out
@@ -240,6 +243,30 @@ func _test_perf() -> void:
 		_update_lights(s[1])
 		await _wait(4.0)
 		print("perf %s  fps=%d  draw_calls=%d" % [s[0], Engine.get_frames_per_second(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
+
+
+## 계단 중간 참에서 점프한 높이와 선 높이의 화면 밝기 비교 (층 조명 켜고 끄기로 밝기가 튀는지)
+func _test_lightjump(out: String) -> void:
+	player.set_physics_process(false)
+	var cam: Camera3D = player.get("camera")
+	for spot in [[Vector3(4.0, 3 * SchoolLayout.FLOOR_H + 1.8, 59.9), Vector3(4.0, 3 * SchoolLayout.FLOOR_H + 3.0, 57.0)], [Vector3(55.0, 3 * SchoolLayout.FLOOR_H + 1.8, 12.0), Vector3(58.0, 3 * SchoolLayout.FLOOR_H + 2.5, 15.0)]]:
+		var vals: Array = []
+		for dy in [1.6, 2.5, 1.6]:
+			# 카메라는 그대로 두고 조명 선택만 점프 높이로 바꾼다 (화면 변화는 조명 때문인 것만 남는다)
+			cam.global_position = spot[0] + Vector3(0, 1.6, 0)
+			cam.look_at(spot[1], Vector3.UP)
+			_lit_floor = -1
+			_update_lights(spot[0] + Vector3(0, dy, 0))
+			await _wait(1.5)
+			await RenderingServer.frame_post_draw
+			var img := get_viewport().get_texture().get_image()
+			img.resize(64, 36)
+			var sum := 0.0
+			for j in 36:
+				for i in 64:
+					sum += img.get_pixel(i, j).get_luminance()
+			vals.append(sum / (64.0 * 36.0))
+		print("lightjump %s: stand=%.4f jump=%.4f stand=%.4f" % [spot[0], vals[0], vals[1], vals[2]])
 
 
 ## 중정 남쪽 → 정문(A동 홀) → 서복도 → 계단 A남 → 5층까지 걸어 올라간다 (계단 이어짐 확인)

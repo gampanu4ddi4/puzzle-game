@@ -168,6 +168,7 @@ func _make_materials() -> void:
 	mats["frame"] = _tri(Color(0.78, 0.8, 0.8), null, 1.0, 0.4, 0.5)
 	mats["wood"] = _tri(Color(0.78, 0.6, 0.4), wood, 1.0, 0.55)
 	mats["door_wood"] = _tri(Color(0.95, 0.78, 0.55), wood, 0.8, 0.5)
+	mats["door_line"] = _tri(Color(0.42, 0.28, 0.16), null, 1.0, 0.6)
 	mats["door_grey"] = _tri(Color(0.72, 0.74, 0.74), null, 1.0, 0.45, 0.2)
 	mats["stair"] = _tri(Color(0.78, 0.78, 0.77), granite, 0.8, 0.5)
 	mats["rail"] = _tri(Color(0.55, 0.57, 0.6), null, 1.0, 0.4, 0.6)
@@ -267,7 +268,7 @@ func _build_floor(f: int) -> void:
 	var doors := _assign_doors(f, rooms, segs)
 	for si in segs.size():
 		_build_segment(ctx, segs[si], doors.get(si, []))
-	_build_posts(ctx, segs)
+	_build_posts(ctx, segs, doors)
 	_build_slabs(ctx)
 	for ri in rooms.size():
 		var room: Dictionary = rooms[ri]
@@ -286,6 +287,14 @@ func _build_floor(f: int) -> void:
 	_build_signs(ctx, doors)
 	stats["floor%d" % (f + 1)] = mb.box_count()
 	mb.commit(root, "Mesh")
+	# 이 층의 보이는 것은 레이어 (f+2), 이 층의 조명은 그 레이어만 비춘다.
+	# 조명은 그림자를 쓰지 않아 바닥판을 뚫고 위아래 층을 비췄다. 층 조명을 켜고 끌 때(계단에서 점프 등) 밝기가 바뀌던 원인
+	var bit := 1 << (f + 1)
+	for n in root.find_children("*", "", true, false):
+		if n is Light3D:
+			(n as Light3D).light_cull_mask = bit
+		elif n is VisualInstance3D:
+			(n as VisualInstance3D).layers = bit
 
 
 ## 칸 경계를 훑어 벽이 될 선분을 모은다. 같은 두 방 사이의 이어진 경계는 하나로 합친다.
@@ -428,11 +437,11 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 					doors[sj] = tl
 		match kind:
 			"class", "hall":
-				if a1 - a0 >= 5.0:
-					list.append({"at": a0 + 1.2, "w": 1.0, "h": 2.1, "kind": kind})
-					list.append({"at": a1 - 1.2, "w": 1.0, "h": 2.1, "kind": kind})
+				if a1 - a0 >= 5.5:
+					list.append({"at": a0 + 1.35, "w": 1.7, "h": 2.15, "kind": kind})
+					list.append({"at": a1 - 1.35, "w": 1.7, "h": 2.15, "kind": kind})
 				else:
-					list.append({"at": (a0 + a1) / 2.0, "w": 1.0, "h": 2.1, "kind": kind})
+					list.append({"at": (a0 + a1) / 2.0, "w": 1.7, "h": 2.15, "kind": kind})
 			"stair":
 				# 학교 계단실은 복도 쪽이 통째로 트여 있다 (문 없음, 반자 높이까지)
 				list.append({"at": (a0 + a1) / 2.0, "w": a1 - a0, "h": SchoolLayout.CEIL_H, "kind": "stair_open"})
@@ -699,16 +708,45 @@ func _build_leaf(ctx: Dictionary, s: Dictionary, d: Dictionary, thick: float) ->
 		_flag_sign(ctx, s, at, w, -side, String(d["sign_name"]), thick)
 	match kind:
 		"class", "hall":
-			# 미닫이: 선분 안쪽으로 70 % 밀어 둔다
+			# 미닫이 두 짝: 복도 쪽 레일 두 줄. 바깥 레일 짝은 문 구멍 한쪽 끝, 안쪽 레일 짝은 0.75 m 밀어 열어 둔다
+			var out_s := -side
+			var lw := w / 2.0 + 0.05
 			var dir := 1.0 if (float(s["a1"]) - a1) > (a0 - float(s["a0"])) else -1.0
-			var c := at + dir * w * 0.6
-			face = -side * (thick / 2.0 + 0.03)   # 복도 쪽 면 (실제 교실 미닫이는 복도 쪽 레일)
-			side = -side
-			_wall_box(mb, s, c, w, y + h / 2.0, h - 0.04, face, 0.04, mats["door_wood"])
-			_wall_box(mb, s, c, w * 0.42, y + 1.55, 0.7, face + side * 0.022, 0.006, mats["tv"])
-			for k in 3:
-				_wall_box(mb, s, c, w - 0.1, y + 0.35 + 0.25 * k, 0.012, face + side * 0.022, 0.004, mats["band"])
-			_wall_box(mb, s, c - dir * (w / 2.0 - 0.08), 0.03, y + 1.0, 0.18, face + side * 0.03, 0.02, mats["steel"])
+			var fixed_c := (a0 + lw / 2.0) if dir < 0.0 else (a1 - lw / 2.0)
+			var slid_c := (a1 - lw / 2.0 - 0.75) if dir < 0.0 else (a0 + lw / 2.0 + 0.75)
+			for leaf in [[fixed_c, thick / 2.0 + 0.065, true], [slid_c, thick / 2.0 + 0.025, false]]:
+				var c: float = leaf[0]
+				var off: float = out_s * float(leaf[1])
+				var lh := h - 0.03
+				if leaf[2]:
+					# 창이 있는 짝: 창 자리를 비우고 네 조각으로
+					var ww := lw * 0.62
+					var wy0 := 1.2
+					var wy1 := 1.46
+					_wall_box(mb, s, c, lw, y + 0.01 + wy0 / 2.0, wy0, off, 0.035, mats["door_wood"])
+					_wall_box(mb, s, c, lw, y + (wy1 + lh + 0.01) / 2.0, lh + 0.01 - wy1, off, 0.035, mats["door_wood"])
+					for e in [-1.0, 1.0]:
+						_wall_box(mb, s, c + e * (ww / 2.0 + (lw - ww) / 4.0), (lw - ww) / 2.0, y + (wy0 + wy1) / 2.0, wy1 - wy0, off, 0.035, mats["door_wood"])
+				else:
+					_wall_box(mb, s, c, lw, y + lh / 2.0 + 0.01, lh, off, 0.035, mats["door_wood"])
+				var fo := off + out_s * 0.019
+				# 가로 판 이음 (5칸)
+				for k in 4:
+					_wall_box(mb, s, c, lw - 0.06, y + 0.42 * (k + 1) + (0.2 if k >= 2 else 0.0), 0.012, fo, 0.004, mats["door_line"])
+				# 테두리 세로 선
+				for e in [-1.0, 1.0]:
+					_wall_box(mb, s, c + e * (lw / 2.0 - 0.03), 0.012, y + lh / 2.0, lh - 0.06, fo, 0.004, mats["door_line"])
+				if leaf[2]:
+					_wall_box(mb, s, c, lw * 0.62, y + 1.33, 0.26, off, 0.01, mats["glass"])
+				# 손잡이: 문 가운데 쪽 가장자리에 세로 홈
+				var inner_edge := c + (lw / 2.0 - 0.06) * (1.0 if c < at else -1.0)
+				_wall_box(mb, s, inner_edge, 0.03, y + 1.0, 0.2, fo, 0.012, mats["steel"])
+				# 충돌
+				var cpos := float(s["line"]) + off
+				if s["axis"] == "x":
+					_col(ctx, Vector3(c, y + lh / 2.0, cpos), Vector3(lw, lh, 0.035))
+				else:
+					_col(ctx, Vector3(cpos, y + lh / 2.0, c), Vector3(0.035, lh, lw))
 		"ev":
 			for k in [-1.0, 1.0]:
 				_wall_box(mb, s, at + k * w / 4.0, w / 2.0 - 0.01, y + h / 2.0, h, 0.0, 0.05, mats["steel"])
@@ -840,9 +878,23 @@ func _wall_pieces(a0: float, a1: float, h: float, openings: Array) -> Array:
 
 
 ## 선분 끝마다 모서리 기둥 (벽이 만나는 곳의 빈틈을 메운다)
-func _build_posts(ctx: Dictionary, segs: Array) -> void:
+func _build_posts(ctx: Dictionary, segs: Array, doors := {}) -> void:
 	var rooms: Array = ctx["rooms"]
 	var seen := {}
+	var open_count := {}
+	var all_count := {}
+	for si in segs.size():
+		var t: Dictionary = segs[si]
+		var is_open := false
+		for d in doors.get(si, []):
+			if d["kind"] == "stair_open":
+				is_open = true
+		for a in [t["a0"], t["a1"]]:
+			var q := _seg_point(t, a, 0.0)
+			var k := "%.2f,%.2f" % [q.x, q.z]
+			all_count[k] = int(all_count.get(k, 0)) + 1
+			if is_open:
+				open_count[k] = int(open_count.get(k, 0)) + 1
 	for s in segs:
 		var ka := _kind(rooms, s["A"])
 		var kb := _kind(rooms, s["B"])
@@ -853,6 +905,8 @@ func _build_posts(ctx: Dictionary, segs: Array) -> void:
 		for a in [s["a0"], s["a1"]]:
 			var p := _seg_point(s, a, 0.0)
 			var key := "%.2f,%.2f" % [p.x, p.z]
+			if int(open_count.get(key, 0)) >= 2 and open_count[key] == all_count[key]:
+				continue   # 트인 계단 입구 두 면이 만나는 곳: 기둥 없음
 			if seen.has(key) and seen[key][0] >= h and seen[key][1] >= t:
 				continue
 			var prev: Array = seen.get(key, [0.0, 0.0])
@@ -1132,8 +1186,6 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 		var pb: Vector3 = to_w.call(ends[2], v_mid, ends[3])
 		var dvec := pb - pa
 		mb.add_box(mats["handrail"], (pa + pb) / 2.0, Vector3(0.06, 0.05, dvec.length()), Basis.looking_at(dvec.normalized(), Vector3.UP))
-	# 가운데 얇은 띠 (두 줄 사이 틈의 옆판)
-	box.call(LANDING, far, v_mid - 0.02, v_mid + 0.02, y + 1.5, y + 1.8, mats["rail"], false)
 	var a: Vector3 = to_w.call(LANDING, v_mid - 0.06, y)
 	var b: Vector3 = to_w.call(far, v_mid + 0.06, y + 3.6 + 0.9)
 	_col(ctx, (a + b) / 2.0, (b - a).abs())
