@@ -29,9 +29,9 @@ const X_WO := Vector2(0.0, 8.0)
 const X_WC := Vector2(8.0, 11.0)
 const X_WI := Vector2(11.0, 16.6)
 const X_V := Vector2(16.6, 42.4)
-const X_EI := Vector2(42.4, 50.4)
-const X_EC := Vector2(50.4, 53.5)
-const X_EO := Vector2(53.5, 59.7)
+const X_EI := Vector2(42.4, 49.3)
+const X_EC := Vector2(49.3, 52.4)
+const X_EO := Vector2(52.4, 59.7)
 const Z_NO := Vector2(0.0, 9.7)
 const Z_NC := Vector2(9.7, 13.9)
 const Z_MID := Vector2(13.9, 57.6)
@@ -47,8 +47,8 @@ const GAP_1F := Vector2(25.6, 32.4)   # 1층 북쪽 줄 가운데 바깥 통로
 const STAIRS := [
 	{"name": "계단 A북", "rect": Rect2(11.9, 0.0, 3.5, 9.7), "axis": "z", "near": "S", "door": "S"},
 	{"name": "계단 A남", "rect": Rect2(0.0, 55.8, 8.0, 6.0), "axis": "x", "near": "E", "door": "E"},
-	{"name": "계단 B북", "rect": Rect2(53.5, 9.7, 6.2, 6.0), "axis": "x", "near": "W", "door": "W"},
-	{"name": "계단 B남", "rect": Rect2(53.5, 55.8, 6.2, 6.0), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 B북", "rect": Rect2(52.4, 9.7, 7.3, 4.6), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 B남", "rect": Rect2(52.4, 55.8, 7.3, 6.0), "axis": "x", "near": "W", "door": "W"},
 ]
 
 
@@ -77,15 +77,16 @@ static func rooms(floor: int) -> Array:
 	out.append_array(_stack(Rect2(X_WI.x, Z_MID.x, X_WI.y - X_WI.x, Z_MID.y - Z_MID.x), "z", "W", _wi(floor)))
 	out.append_array(_stack(Rect2(X_EI.x, Z_MID.x, X_EI.y - X_EI.x, Z_MID.y - Z_MID.x), "z", "E", _ei(floor)))
 	# 동쪽 바깥 줄 EO (B북 계단 아래 ~ B남 계단 위)
-	out.append_array(_stack(Rect2(X_EO.x, 15.7, X_EO.y - X_EO.x, 55.8 - 15.7), "z", "W", _eo(floor)))
+	out.append_array(_stack(Rect2(X_EO.x, 14.3, X_EO.y - X_EO.x, 55.8 - 14.3), "z", "W", _eo(floor)))
 	if floor >= 2:
 		# 동쪽 화장실: 앞 공간에서 화장실마다 작은 들머리(문 앞 칸)로 들어가 문을 연다. 들머리와 칸 줄 사이, 앞 공간과 화장실 사이는 벽.
 		# 앞 공간 가운데에 음수대 칸, 그 동쪽으로 앞 공간을 둘로 나누는 벽
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 19.7, 2.0, 1.9), "corr", ""))
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 26.7, 2.0, 1.9), "corr", ""))
-		out.append(_r("음수대", Rect2(X_EO.x, 23.2, 3.6, 1.9), "closed", ""))
-		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.6, 24.05, X_EO.y - X_EO.x - 3.6, 0.5), "closed", ""))
-		out.append(_r("세척실", Rect2(X_EO.x, 30.9, 2.5, 1.6), "room", "W", 0.5))
+		# 치수는 피난안내도 (동쪽 바깥 줄 폭 7.3 m 기준): 여 14.3..19.8, 앞 공간 ..24.9, 남 ..29.1, 세척실 줄 ..30.4
+		out.append(_r("화장실 앞", Rect2(X_EO.x, 18.05, 1.9, 1.75), "corr", ""))
+		out.append(_r("화장실 앞", Rect2(X_EO.x, 24.9, 1.9, 1.75), "corr", ""))
+		out.append(_r("음수대", Rect2(X_EO.x, 21.3, 3.8, 1.9), "closed", ""))
+		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.8, 22.15, X_EO.y - X_EO.x - 3.8, 0.5), "closed", ""))
+		out.append(_r("PD", Rect2(X_EO.x + 2.35, 29.1, X_EO.y - X_EO.x - 2.35, 1.3), "closed", ""))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
 		out.append(_r(s["name"], s["rect"], "stair", s["door"]))
@@ -246,15 +247,15 @@ static func _ei(f: int) -> Array:
 
 static func _eo(f: int) -> Array:
 	var wc := [["화장실(남)", -4.0, "toilet", "", 0.2], ["화장실(여)", -4.0, "toilet", "", 0.2]]
-	var wc2 := [["화장실(남)", -5.9, "toilet", "S", 0.12, "N:칸|S:세면칸"], ["화장실 앞", -5.1, "corr"], ["화장실(여)", -5.8, "toilet", "S", 0.12, "N:세면칸|S:소변"]]
+	var wc2 := [["화장실(여)", -5.5, "toilet", "S", 0.13, "N:칸|S:세면칸"], ["화장실 앞", -5.1, "corr"], ["화장실(남)", -4.2, "toilet", "S", 0.13, "N:세면칸|S:소변"], ["세척실", -1.3, "room", "W", 0.5]]
 	match f:
 		1:
 			return [["창고", 2.0, "room", "", 0.5], wc[0], wc[1], ["진로교육 전용공간", 3.0, "room", "", 0.85], ["포켓쉼터", 2.0, "open"], ["기술/가정 이론교실", 5.0, "class"], ["준비실", 2.0, "room", "", 0.2], ["창고", 2.0, "room", "", 0.2]]
 		2:
-			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], wc2[3], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		3:
-			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], wc2[3], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
 		4:
-			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], wc2[3], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		_:
-			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], wc2[3], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]

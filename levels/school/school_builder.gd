@@ -1338,9 +1338,9 @@ func _furnish_toilet(ctx: Dictionary, room: Dictionary) -> void:
 		if what == "세면칸":
 			# 들머리(문 앞 칸) 자리 2.2 m를 비우고, 그 옆부터 세면대 (약 1/3), 나머지 칸
 			if near_lo:
-				lo_a = maxf(lo_a, a0 + 2.2)
+				lo_a = maxf(lo_a, a0 + 2.0)
 			else:
-				hi_a = minf(hi_a, a1 - 2.2)
+				hi_a = minf(hi_a, a1 - 2.0)
 			var sl := (hi_a - lo_a) * 0.36
 			var s0 := lo_a if near_lo else hi_a - sl
 			var s1 := s0 + sl
