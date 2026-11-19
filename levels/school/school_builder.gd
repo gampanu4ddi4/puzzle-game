@@ -392,6 +392,10 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				rank = 1   # 복도에 닿지 않는 준비실 등: 옆 교실(실험실)로 통하는 문
 			if rank > 0 and float(room.get("frac", -1.0)) >= 0.0 and _side_of(sr, s) == room["door"]:
 				rank = 3   # 피난안내도에서 읽은 문: 지정한 벽
+				var fr := float(room["frac"])
+				var at_f := lerpf(sr.position.x, sr.end.x, fr) if s["axis"] == "x" else lerpf(sr.position.y, sr.end.y, fr)
+				if at_f > float(s["a0"]) and at_f < float(s["a1"]):
+					rank = 4   # 그 자리를 지나는 선분
 			if rank == 0 or rank < best_rank:
 				continue
 			if rank > best_rank:
@@ -1332,7 +1336,11 @@ func _furnish_toilet(ctx: Dictionary, room: Dictionary) -> void:
 				mb.add_box(mats["stall"], p.call(a + 0.4, 0.3, y + 1.0), sz.call(0.03, 0.55, 0.9))
 			continue
 		if what == "세면칸":
-			# 문 쪽 앞부분에 세면대 (약 1/3), 나머지 칸
+			# 들머리(문 앞 칸) 자리 2.2 m를 비우고, 그 옆부터 세면대 (약 1/3), 나머지 칸
+			if near_lo:
+				lo_a = maxf(lo_a, a0 + 2.2)
+			else:
+				hi_a = minf(hi_a, a1 - 2.2)
 			var sl := (hi_a - lo_a) * 0.36
 			var s0 := lo_a if near_lo else hi_a - sl
 			var s1 := s0 + sl
@@ -1354,7 +1362,7 @@ func _furnish_toilet(ctx: Dictionary, room: Dictionary) -> void:
 		for k in n2:
 			var c0 := lo_a + k * cw
 			mb.add_box(mats["stall"], p.call(c0 + 0.08, depth, y + 0.95), sz.call(0.16, 0.04, 1.8))
-			mb.add_box(mats["door_grey"], p.call(c0 + 0.19, depth + 0.25, y + 0.95), sz.call(0.04, 0.6, 1.7))
+			mb.add_box(mats["door_grey"], p.call(c0 + 0.19, depth - 0.31, y + 0.95), sz.call(0.04, 0.6, 1.7))
 			mb.add_box(mats["stall"], p.call(c0 + cw - 0.04, depth, y + 0.95), sz.call(0.08, 0.04, 1.8))
 			mb.add_box(mats["locker_top"], p.call(c0 + cw / 2.0, 0.4, y + 0.2), sz.call(0.38, 0.5, 0.4))
 		mb.add_box(mats["stall"], p.call((lo_a + hi_a) / 2.0, depth, y + 1.88), sz.call(hi_a - lo_a, 0.04, 0.06))
