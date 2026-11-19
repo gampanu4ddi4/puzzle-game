@@ -1090,18 +1090,16 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 	# 가까운 끝 층계참 (이 층 바닥)
 	box.call(0.0, LANDING, 0.0, width, y - 0.25, y, mats["stair"], true)
 	if f >= SchoolLayout.FLOORS - 1:
-		# 맨 위층: 위로 가는 계단이 없으니 첫 줄 쪽 반(v 0..가운데)은 바닥판으로 덮는다.
-		# 남는 구멍(아래층 둘째 줄 위)의 가장자리, 즉 가운데 선을 따라 난간을 바닥판 위에 세운다.
-		var hv := (width - 0.2) / 2.0
-		var vm := hv + 0.1
-		box.call(LANDING, length, 0.0, vm + 0.1, y - 0.25, y, mats["stair"], true)
-		var n := int((length - LANDING) / 0.12)
+		# 맨 위층: 층계참 끝(아래층 첫 줄 위 구멍 쪽)에만 난간. 둘째 줄 쪽은 아래층에서 올라오는 계단 손잡이가 이어진다.
+		var vm := (width - 0.2) / 2.0 + 0.1
+		var ue := LANDING - 0.05
+		var n := int(vm / 0.12)
 		for k in n + 1:
-			var uu := lerpf(LANDING, length - 0.05, float(k) / n)
-			box.call(uu - 0.012, uu + 0.012, vm - 0.012, vm + 0.012, y, y + 1.1, mats["rail"], false)
-		box.call(LANDING - 0.03, length, vm - 0.03, vm + 0.03, y + 1.08, y + 1.14, mats["handrail"], false)
-		var pa: Vector3 = to_w.call(LANDING, vm - 0.04, y)
-		var pb: Vector3 = to_w.call(length, vm + 0.04, y + 1.14)
+			var vv := lerpf(0.05, vm, float(k) / n)
+			box.call(ue - 0.012, ue + 0.012, vv - 0.012, vv + 0.012, y, y + 1.1, mats["rail"], false)
+		box.call(ue - 0.03, ue + 0.03, 0.0, vm + 0.03, y + 1.08, y + 1.14, mats["handrail"], false)
+		var pa: Vector3 = to_w.call(ue - 0.04, 0.0, y)
+		var pb: Vector3 = to_w.call(ue + 0.04, vm, y + 1.14)
 		var lo := Vector3(minf(pa.x, pb.x), pa.y, minf(pa.z, pb.z))
 		var hi := Vector3(maxf(pa.x, pb.x), pb.y, maxf(pa.z, pb.z))
 		_col(ctx, (lo + hi) / 2.0, hi - lo)
