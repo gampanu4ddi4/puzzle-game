@@ -206,7 +206,7 @@ static func _wo(f: int) -> Array:
 
 static func _wi(f: int) -> Array:
 	var top := ["EPS|E/V", -4.0, "eps|ev"]
-	var wc := [["화장실(여)", -6.0, "toilet", "", 0.15], ["화장실(남)", -6.0, "toilet", "", 0.15]]
+	var wc := [["화장실(여)", -6.0, "toilet", "", 0.85], ["화장실(남)", -6.0, "toilet", "", 0.15]]
 	match f:
 		1:
 			return [top, ["창고", -4.0, "room", "", 0.8], wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["운영위원회의실", 3.0, "room", "", 0.15], ["전산실", 2.0, "room", "", 0.85], ["발간실", 2.0, "room", "", 0.1], ["홀", 4.0, "open"]]

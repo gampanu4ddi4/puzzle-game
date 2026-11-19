@@ -214,6 +214,10 @@ func _tour_list() -> Array:
 	out.append(["d10_top_stair", Vector3(52.5, 4 * SchoolLayout.FLOOR_H + 1.7, 11.0), Vector3(57.0, 4 * SchoolLayout.FLOOR_H - 1.5, 15.0)])
 	out.append(["d11_sign_close", Vector3(40.0, 4 * SchoolLayout.FLOOR_H + 1.7, 13.2), Vector3(44.0, 4 * SchoolLayout.FLOOR_H + 2.4, 10.6)])
 	out.append(["d12_class_door_close", Vector3(10.6, 3 * SchoolLayout.FLOOR_H + 1.6, 22.0), Vector3(7.7, 3 * SchoolLayout.FLOOR_H + 1.2, 25.0)])
+	out.append(["e1_toilets_4f", Vector3(9.0, 3 * SchoolLayout.FLOOR_H + 1.6, 31.0), Vector3(11.5, 3 * SchoolLayout.FLOOR_H + 1.0, 20.0)])
+	out.append(["e2_toilet_inside", Vector3(11.2, 3 * SchoolLayout.FLOOR_H + 1.7, 23.6), Vector3(15.5, 3 * SchoolLayout.FLOOR_H + 0.6, 18.6)])
+	out.append(["e3_rail_joint", Vector3(5.5, 3 * SchoolLayout.FLOOR_H + 1.7, 57.0), Vector3(3.8, 3 * SchoolLayout.FLOOR_H + 0.6, 59.6)])
+	out.append(["e4_top_rail", Vector3(6.6, 4 * SchoolLayout.FLOOR_H + 1.6, 57.0), Vector3(5.6, 4 * SchoolLayout.FLOOR_H + 0.8, 59.5)])
 	out.append(["4_west_end", Vector3(2.0, 3 * SchoolLayout.FLOOR_H + 1.6, 12.2), Vector3(-30.0, 3 * SchoolLayout.FLOOR_H - 2.0, 12.0)])
 	out.append(["1_parking_outside", Vector3(-41.0, 1.7, 34.0), Vector3(-41.0, 1.0, 10.0)])
 	return out
