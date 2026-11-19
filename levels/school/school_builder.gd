@@ -167,6 +167,8 @@ func _make_materials() -> void:
 	mats["slab_edge"] = _tri(Color(0.85, 0.84, 0.8), null, 1.0, 0.8)
 	mats["frame"] = _tri(Color(0.78, 0.8, 0.8), null, 1.0, 0.4, 0.5)
 	mats["wood"] = _tri(Color(0.78, 0.6, 0.4), wood, 1.0, 0.55)
+	mats["door_wood"] = _tri(Color(0.95, 0.78, 0.55), wood, 0.8, 0.5)
+	mats["door_grey"] = _tri(Color(0.72, 0.74, 0.74), null, 1.0, 0.45, 0.2)
 	mats["stair"] = _tri(Color(0.78, 0.78, 0.77), granite, 0.8, 0.5)
 	mats["rail"] = _tri(Color(0.55, 0.57, 0.6), null, 1.0, 0.4, 0.6)
 	mats["handrail"] = _tri(Color(0.75, 0.55, 0.35), null, 1.0, 0.5)
@@ -395,6 +397,10 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 		var a0: float = s["a0"]
 		var a1: float = s["a1"]
 		var list: Array = doors.get(best, [])
+		# 방이 선의 어느 쪽에 있는가 (+1 = 좌표가 큰 쪽)
+		var c_perp := sr.get_center().y if s["axis"] == "x" else sr.get_center().x
+		var side := 1.0 if c_perp > float(s["line"]) else -1.0
+		var n0 := list.size()
 		match kind:
 			"class", "hall":
 				if a1 - a0 >= 5.0:
@@ -403,12 +409,8 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				else:
 					list.append({"at": (a0 + a1) / 2.0, "w": 1.0, "h": 2.1, "kind": kind})
 			"stair":
-				var at := (a0 + a1) / 2.0
-				var spec := _stair_spec(String(room["name"]))
-				var landing := _landing_along(spec, room["srect"], s)
-				if not is_nan(landing):
-					at = clampf(landing, a0 + 0.8, a1 - 0.8)
-				list.append({"at": at, "w": 1.4, "h": 2.2, "kind": kind})
+				# 학교 계단실은 복도 쪽이 통째로 트여 있다 (문 없음, 반자 높이까지)
+				list.append({"at": (a0 + a1) / 2.0, "w": a1 - a0, "h": SchoolLayout.CEIL_H, "kind": "stair_open"})
 			"terrace":
 				list.append({"at": (a0 + a1) / 2.0, "w": 1.6, "h": 2.2, "kind": kind})
 			"ev":
@@ -424,8 +426,10 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 					var hi := minf(a1, r1) - 0.6
 					at = clampf(lerpf(r0, r1, frac), lo, hi) if hi > lo else (a0 + a1) / 2.0
 				list.append({"at": at, "w": 0.95, "h": 2.1, "kind": kind})
+		for k in range(n0, list.size()):
+			list[k]["side"] = side
 		doors[best] = list
-		var d: Dictionary = list[0]
+		var d: Dictionary = list[n0]
 		door_points["%d:%s" % [f + 1, room["name"]]] = _seg_point(s, d["at"], f * SchoolLayout.FLOOR_H)
 	# 바깥으로 나가는 문
 	for ed in SchoolLayout.exterior_doors(f + 1):
@@ -452,7 +456,11 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 					on_side = s["axis"] == "z" and absf(s["line"] - _snap(SchoolLayout.W)) < 0.01
 			if on_side and pos > s["a0"] and pos < s["a1"]:
 				var list: Array = doors.get(si, [])
-				list.append({"at": pos, "w": ed[2], "h": 2.4, "kind": "exterior"})
+				var w: float = ed[2]
+				var at := clampf(pos, float(s["a0"]) + w / 2.0 + 0.35, float(s["a1"]) - w / 2.0 - 0.35)
+				var indoor_side := 1.0 if (ka in OUTDOOR) else -1.0
+				list.append({"at": at, "w": w, "h": 2.4, "kind": "exterior", "side": indoor_side})
+				pos = at
 				doors[si] = list
 				door_points["%d:exterior_%s" % [f + 1, side]] = _seg_point(s, pos, 0.0)
 	return doors
@@ -547,7 +555,16 @@ func _build_segment(ctx: Dictionary, s: Dictionary, door_list: Array) -> void:
 	var h := SchoolLayout.FLOOR_H - 0.02 if (exterior or shaft) else SchoolLayout.CEIL_H
 	var openings: Array = []      # [a0, a1, y0, y1, kind]
 	for d in door_list:
-		openings.append([d["at"] - d["w"] / 2.0, d["at"] + d["w"] / 2.0, 0.0, d["h"], "door"])
+		var dw: float = d["w"]
+		# 문은 선분 안에 (모서리 기둥과 겹치지 않게)
+		var at := clampf(float(d["at"]), float(s["a0"]) + dw / 2.0 + 0.12, float(s["a1"]) - dw / 2.0 - 0.12) if d["kind"] != "stair_open" else float(d["at"])
+		d["at"] = at
+		if d["kind"] == "stair_open":
+			openings.append([s["a0"], s["a1"], 0.0, d["h"], "open"])
+			continue
+		openings.append([at - dw / 2.0, at + dw / 2.0, 0.0, d["h"], "door"])
+		if d["kind"] in ["class", "hall"] and h > 2.9:
+			openings.append([at - dw / 2.0 - 0.1, at + dw / 2.0 + 0.1, 2.3, 2.8, "transom"])
 	var indoor_kind := kb if oa else ka
 	var windows := exterior and not (indoor_kind in ["eps", "ev"])
 	if windows:
@@ -564,7 +581,7 @@ func _build_segment(ctx: Dictionary, s: Dictionary, door_list: Array) -> void:
 			# 문과 겹치면 창을 줄이거나 뺀다
 			var cut := false
 			for o in openings:
-				if o[4] == "door" and o[1] > w0 - 0.2 and o[0] < w1 + 0.2:
+				if o[4] in ["door", "open"] and o[1] > w0 - 0.2 and o[0] < w1 + 0.2:
 					cut = true
 			if not cut:
 				openings.append([w0, w1, 0.9, 2.5, "window"])
@@ -604,6 +621,17 @@ func _build_segment(ctx: Dictionary, s: Dictionary, door_list: Array) -> void:
 	for o in openings:
 		var a0: float = o[0]
 		var a1: float = o[1]
+		if o[4] == "open":
+			continue
+		if o[4] == "transom":
+			var tm := (a0 + a1) / 2.0
+			_wall_box(mb, s, tm, a1 - a0, y + (o[2] + o[3]) / 2.0, o[3] - o[2], 0.0, 0.02, mats["glass"])
+			for yy in [o[2] + 0.03, o[3] - 0.03]:
+				_wall_box(mb, s, tm, a1 - a0 + 0.08, y + yy, 0.06, 0.0, thick + 0.04, mats["door_wood"])
+			for am in [a0, tm, a1]:
+				_wall_box(mb, s, am, 0.06, y + (o[2] + o[3]) / 2.0, o[3] - o[2], 0.0, thick + 0.04, mats["door_wood"])
+			_collide_wall(ctx, s, tm, a1 - a0, y + (o[2] + o[3]) / 2.0, o[3] - o[2], 0.06, false, false)
+			continue
 		if o[4] == "window":
 			var mid := (a0 + a1) / 2.0
 			_wall_box(mb, s, mid, a1 - a0, y + (o[2] + o[3]) / 2.0, o[3] - o[2], 0.0, 0.02, mats["glass"])
@@ -616,10 +644,65 @@ func _build_segment(ctx: Dictionary, s: Dictionary, door_list: Array) -> void:
 			_wall_box(mb, s, mid, a1 - a0, y + 1.7, 0.05, 0.0, thick + 0.02, mats["frame"])
 			_collide_wall(ctx, s, mid, a1 - a0, y + (o[2] + o[3]) / 2.0, o[3] - o[2], 0.06, false, false)
 		else:
-			var fm: Material = mats["wood"] if o[4] == "door" else mats["frame"]
+			var fm: Material = mats["door_wood"] if o[4] == "door" else mats["frame"]
 			for am in [a0 - 0.04, a1 + 0.04]:
 				_wall_box(mb, s, am, 0.08, y + o[3] / 2.0, o[3], 0.0, thick + 0.06, fm)
 			_wall_box(mb, s, (a0 + a1) / 2.0, a1 - a0 + 0.16, y + o[3] + 0.04, 0.08, 0.0, thick + 0.06, fm)
+	# 문짝
+	for d in door_list:
+		_build_leaf(ctx, s, d, thick)
+
+
+## 문짝: 교실·큰 방은 방 쪽 벽면을 따라 반쯤 열어 둔 미닫이 (윗부분 유리),
+## 작은 방·화장실은 방 안으로 90도 열린 여닫이, 바깥문은 안으로 열린 양여닫이 유리문, 승강기는 닫힌 철문.
+func _build_leaf(ctx: Dictionary, s: Dictionary, d: Dictionary, thick: float) -> void:
+	var kind := String(d["kind"])
+	if kind == "stair_open":
+		return
+	var mb: MeshBatch = ctx["mb"]
+	var y: float = ctx["y"]
+	var at: float = d["at"]
+	var w: float = d["w"]
+	var h: float = d["h"]
+	var side: float = d.get("side", 1.0)
+	var a0 := at - w / 2.0
+	var a1 := at + w / 2.0
+	var face := side * (thick / 2.0 + 0.03)
+	match kind:
+		"class", "hall":
+			# 미닫이: 선분 안쪽으로 70 % 밀어 둔다
+			var dir := 1.0 if (float(s["a1"]) - a1) > (a0 - float(s["a0"])) else -1.0
+			var c := at + dir * w * 0.7
+			_wall_box(mb, s, c, w, y + h / 2.0, h - 0.04, face, 0.04, mats["door_wood"])
+			_wall_box(mb, s, c, w * 0.42, y + 1.55, 0.7, face + side * 0.022, 0.006, mats["tv"])
+			for k in 3:
+				_wall_box(mb, s, c, w - 0.1, y + 0.35 + 0.25 * k, 0.012, face + side * 0.022, 0.004, mats["band"])
+			_wall_box(mb, s, c - dir * (w / 2.0 - 0.08), 0.03, y + 1.0, 0.18, face + side * 0.03, 0.02, mats["steel"])
+		"ev":
+			for k in [-1.0, 1.0]:
+				_wall_box(mb, s, at + k * w / 4.0, w / 2.0 - 0.01, y + h / 2.0, h, 0.0, 0.05, mats["steel"])
+			_collide_wall(ctx, s, at, w, y + h / 2.0, h, 0.06, false, false)
+		"exterior", "terrace":
+			# 양여닫이 유리문: 양쪽 문틀에서 안으로 90도
+			for k in [0, 1]:
+				var hinge := a0 + 0.04 if k == 0 else a1 - 0.04
+				var lw := w / 2.0 - 0.02
+				var perp := side * (thick / 2.0 + lw / 2.0)
+				_wall_box(mb, s, hinge, 0.05, y + h / 2.0, h - 0.04, perp, lw, mats["frame"])
+				_wall_box(mb, s, hinge, 0.055, y + h / 2.0 + 0.1, h - 0.6, perp, lw - 0.12, mats["glass"])
+		_:
+			# 여닫이: 한쪽 문틀에서 방 안으로 90도. 화장실은 회색 문
+			var mat: Material = mats["door_grey"] if kind == "toilet" else mats["door_wood"]
+			var hinge := a0 + 0.03
+			var perp := side * (thick / 2.0 + w / 2.0)
+			_wall_box(mb, s, hinge, 0.045, y + (h - 0.02) / 2.0, h - 0.04, perp, w - 0.04, mat)
+			_wall_box(mb, s, hinge + 0.04, 0.03, y + 1.0, 0.03, side * (thick / 2.0 + w - 0.12), 0.14, mats["steel"])
+			if kind != "toilet":
+				_wall_box(mb, s, hinge, 0.05, y + 1.6, 0.4, side * (thick / 2.0 + w / 2.0), 0.28, mats["tv"])
+			if s["axis"] == "x":
+				_col(ctx, Vector3(hinge, y + h / 2.0, float(s["line"]) + perp), Vector3(0.05, h, w - 0.04))
+			else:
+				_col(ctx, Vector3(float(s["line"]) + perp, y + h / 2.0, hinge), Vector3(w - 0.04, h, 0.05))
 
 
 ## 선분의 바깥(실외) 쪽 부호: x 방향 선분이면 +z가 바깥일 때 +1
@@ -1128,7 +1211,7 @@ func _build_signs(ctx: Dictionary, doors: Dictionary) -> void:
 	var root: Node3D = ctx["root"]
 	for key in door_points:
 		var parts := (key as String).split(":")
-		if int(parts[0]) != f + 1 or parts[1].begins_with("exterior"):
+		if int(parts[0]) != f + 1 or parts[1].begins_with("exterior") or parts[1].begins_with("계단"):
 			continue
 		var p: Vector3 = door_points[key]
 		var info := room_at(p + Vector3(0, 1.0, 0))
@@ -1161,18 +1244,29 @@ func _build_signs(ctx: Dictionary, doors: Dictionary) -> void:
 			plate.position = p + dir.normalized() * 0.16 + Vector3(0, 2.45, 0)
 			root.add_child(plate)
 			break
-	# 층 번호 (계단 문 옆)
-	for key in door_points:
-		var parts := (key as String).split(":")
-		if int(parts[0]) != f + 1 or not parts[1].begins_with("계단"):
+	# 층 번호: 계단 층계참 옆벽에 크게 칠한 숫자 (사진처럼)
+	for room in rooms:
+		if String(room["kind"]) != "stair":
 			continue
-		var p: Vector3 = door_points[key]
+		var spec := _stair_spec(String(room["name"]))
+		var r: Rect2 = room["srect"]
 		var l := Label3D.new()
-		l.text = "%dF" % (f + 1)
+		l.text = "%d" % (f + 1)
 		l.font = _font
-		l.font_size = 96
+		l.font_size = 160
 		l.pixel_size = 0.006
-		l.modulate = Color(0.3, 0.55, 0.75)
-		l.position = p + Vector3(0, 2.6, 0)
-		l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		l.modulate = Color(0.35, 0.6, 0.85)
+		l.double_sided = false
+		var yy: float = ctx["y"] + 1.7
+		match String(spec["near"]):
+			"E":
+				l.position = Vector3(r.end.x - LANDING / 2.0, yy, r.position.y + 0.17)
+			"W":
+				l.position = Vector3(r.position.x + LANDING / 2.0, yy, r.position.y + 0.17)
+			"S":
+				l.position = Vector3(r.position.x + 0.17, yy, r.end.y - LANDING / 2.0)
+				l.rotation.y = PI / 2
+			_:
+				l.position = Vector3(r.position.x + 0.17, yy, r.position.y + LANDING / 2.0)
+				l.rotation.y = PI / 2
 		root.add_child(l)

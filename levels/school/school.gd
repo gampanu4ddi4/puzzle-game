@@ -199,6 +199,12 @@ func _tour_list() -> Array:
 	out.append(["3_court_view", Vector3(wc, 2 * SchoolLayout.FLOOR_H + 1.6, nc), Vector3(29.5, 3.0, 35.0)])
 	out.append(["2_dining", Vector3(-27.0, SchoolLayout.FLOOR_H + 1.6, 10.5), Vector3(-50.0, SchoolLayout.FLOOR_H + 0.8, 20.0)])
 	out.append(["3_gym", Vector3(-27.0, 2 * SchoolLayout.FLOOR_H + 1.6, 10.5), Vector3(-50.0, 2 * SchoolLayout.FLOOR_H + 0.8, 20.0)])
+	var y4b := 3 * SchoolLayout.FLOOR_H
+	out.append(["d1_entrance_out", Vector3(23.0, 1.6, 65.0), Vector3(16.5, 1.2, 57.8)])
+	out.append(["d2_stair_open", Vector3(9.6, SchoolLayout.FLOOR_H + 1.6, 55.5), Vector3(4.0, SchoolLayout.FLOOR_H + 1.6, 60.0)])
+	out.append(["d3_toilet_doors", Vector3(8.6, y4b + 1.6, 33.0), Vector3(11.5, y4b + 1.0, 20.0)])
+	out.append(["d4_class_doors", Vector3(11.5, y4b + 1.6, 20.0), Vector3(7.7, y4b + 1.4, 34.0)])
+	out.append(["d5_room_inside", Vector3(4.0, y4b + 1.6, 53.0), Vector3(8.0, y4b + 1.0, 50.5)])
 	out.append(["4_west_end", Vector3(2.0, 3 * SchoolLayout.FLOOR_H + 1.6, 12.2), Vector3(-30.0, 3 * SchoolLayout.FLOOR_H - 2.0, 12.0)])
 	out.append(["1_parking_outside", Vector3(-41.0, 1.7, 34.0), Vector3(-41.0, 1.0, 10.0)])
 	return out
