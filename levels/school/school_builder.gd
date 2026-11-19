@@ -688,7 +688,9 @@ func _build_leaf(ctx: Dictionary, s: Dictionary, d: Dictionary, thick: float) ->
 		"class", "hall":
 			# 미닫이: 선분 안쪽으로 70 % 밀어 둔다
 			var dir := 1.0 if (float(s["a1"]) - a1) > (a0 - float(s["a0"])) else -1.0
-			var c := at + dir * w * 0.7
+			var c := at + dir * w * 0.6
+			face = -side * (thick / 2.0 + 0.03)   # 복도 쪽 면 (실제 교실 미닫이는 복도 쪽 레일)
+			side = -side
 			_wall_box(mb, s, c, w, y + h / 2.0, h - 0.04, face, 0.04, mats["door_wood"])
 			_wall_box(mb, s, c, w * 0.42, y + 1.55, 0.7, face + side * 0.022, 0.006, mats["tv"])
 			for k in 3:
@@ -1072,11 +1074,15 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 		var u := LANDING + (k + 0.5) * run
 		var y1 := y + (k + 1) * rise
 		box.call(u - 0.012, u + 0.012, v_mid - 0.012, v_mid + 0.012, y1, y1 + 0.9, mats["rail"], false)
-		box.call(u - run / 2.0, u + run / 2.0, v_mid - 0.03, v_mid + 0.03, y1 + 0.88, y1 + 0.94, mats["handrail"], false)
 		# 위 줄 쪽 (같은 자리, 1.8 m 위 반대 기울기)
 		var y2 := y + 1.8 + (STEP_N - k) * rise
 		box.call(u - 0.012, u + 0.012, v_mid - 0.012, v_mid + 0.012, y2 - rise, y2 - rise + 0.9, mats["rail"], false)
-		box.call(u - run / 2.0, u + run / 2.0, v_mid - 0.03, v_mid + 0.03, y2 - rise + 0.88, y2 - rise + 0.94, mats["handrail"], false)
+	# 기울어진 나무 손잡이 두 줄 (아래 줄, 위 줄)
+	for ends in [[LANDING, y + rise + 0.91, far, y + 1.8 + 0.91], [far, y + 1.8 + 0.91, LANDING, y + 3.6 + 0.91]]:
+		var pa: Vector3 = to_w.call(ends[0], v_mid, ends[1])
+		var pb: Vector3 = to_w.call(ends[2], v_mid, ends[3])
+		var dvec := pb - pa
+		mb.add_box(mats["handrail"], (pa + pb) / 2.0, Vector3(0.06, 0.05, dvec.length()), Basis.looking_at(dvec.normalized(), Vector3.UP))
 	# 가운데 얇은 띠 (두 줄 사이 틈의 옆판)
 	box.call(LANDING, far, v_mid - 0.02, v_mid + 0.02, y + 1.5, y + 1.8, mats["rail"], false)
 	var a: Vector3 = to_w.call(LANDING, v_mid - 0.06, y)

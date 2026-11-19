@@ -207,6 +207,7 @@ func _tour_list() -> Array:
 	out.append(["d5_room_inside", Vector3(4.0, y4b + 1.6, 53.0), Vector3(8.0, y4b + 1.0, 50.5)])
 	out.append(["d6_b_north_stair_5f", Vector3(50.0, 4 * SchoolLayout.FLOOR_H + 1.7, 12.2), Vector3(56.0, 4 * SchoolLayout.FLOOR_H + 0.2, 13.5)])
 	out.append(["d7_class_doors_5f", Vector3(30.0, 4 * SchoolLayout.FLOOR_H + 1.6, 13.4), Vector3(38.0, 4 * SchoolLayout.FLOOR_H + 1.6, 10.4)])
+	out.append(["d8_stair_rail", Vector3(9.0, 3 * SchoolLayout.FLOOR_H + 2.6, 57.5), Vector3(3.0, 3 * SchoolLayout.FLOOR_H + 1.0, 60.0)])
 	out.append(["4_west_end", Vector3(2.0, 3 * SchoolLayout.FLOOR_H + 1.6, 12.2), Vector3(-30.0, 3 * SchoolLayout.FLOOR_H - 2.0, 12.0)])
 	out.append(["1_parking_outside", Vector3(-41.0, 1.7, 34.0), Vector3(-41.0, 1.0, 10.0)])
 	return out
