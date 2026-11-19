@@ -78,6 +78,8 @@ static func rooms(floor: int) -> Array:
 	out.append_array(_stack(Rect2(X_EI.x, Z_MID.x, X_EI.y - X_EI.x, Z_MID.y - Z_MID.x), "z", "E", _ei(floor)))
 	# 동쪽 바깥 줄 EO (B북 계단 아래 ~ B남 계단 위)
 	out.append_array(_stack(Rect2(X_EO.x, 16.4, X_EO.y - X_EO.x, 55.8 - 16.4), "z", "W", _eo(floor)))
+	if floor >= 2:
+		out.append(_r("세척실", Rect2(X_EO.x, 16.4 + 5.8 + 5.4 + 5.6 - 1.6, 2.5, 1.6), "room", "W", 0.5))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
 		out.append(_r(s["name"], s["rect"], "stair", s["door"]))
@@ -119,8 +121,9 @@ static func exterior_doors(floor: int) -> Array:
 
 
 ## frac: 문 위치 (문이 난 벽에서 방의 북쪽/서쪽 끝 0 ~ 남쪽/동쪽 끝 1). 음수면 벽 가운데.
-static func _r(name: String, rect: Rect2, kind: String, door: String, frac := -1.0) -> Dictionary:
-	return {"name": name, "rect": rect, "kind": kind, "door": door, "frac": frac}
+## fix: 화장실 설비 배치 "N:칸|S:세면칸" 처럼 (N/S/W/E = 그 끝벽, 칸 = 대변기 칸 줄, 세면칸 = 세면대 + 칸, 소변 = 소변기 줄)
+static func _r(name: String, rect: Rect2, kind: String, door: String, frac := -1.0, fix := "") -> Dictionary:
+	return {"name": name, "rect": rect, "kind": kind, "door": door, "frac": frac, "fix": fix}
 
 
 ## 한 줄(rect)을 axis 방향으로 나눈다. item: [이름, 크기, 종류] — 크기가 음수면 고정 길이(-크기), 양수면 비율.
@@ -144,6 +147,7 @@ static func _stack(area: Rect2, axis: String, door: String, items: Array) -> Arr
 		var r := Rect2(at, area.position.y, seg, area.size.y) if axis == "x" else Rect2(area.position.x, at, area.size.x, seg)
 		var d: String = it[3] if it.size() > 3 and it[3] != "" else door
 		var frac: float = it[4] if it.size() > 4 else -1.0
+		var fix: String = it[5] if it.size() > 5 else ""
 		var name: String = it[0]
 		if "|" in name:
 			var parts := name.split("|")
@@ -160,7 +164,7 @@ static func _stack(area: Rect2, axis: String, door: String, items: Array) -> Arr
 				out.append(_r(parts[0], Rect2(r.position.x, r.end.y - d1, r.size.x, d1), kinds[0], door))
 				out.append(_r(parts[1], Rect2(r.position.x, r.position.y, r.size.x, r.size.y - d1), kinds[1], "W"))
 		else:
-			out.append(_r(name, r, it[2], d, frac))
+			out.append(_r(name, r, it[2], d, frac, fix))
 		at += seg
 	return out
 
@@ -206,18 +210,18 @@ static func _wo(f: int) -> Array:
 
 static func _wi(f: int) -> Array:
 	var top := ["EPS|E/V", -4.0, "eps|ev"]
-	var wc := [["화장실(여)", -6.0, "toilet", "", 0.85], ["화장실(남)", -6.0, "toilet", "", 0.15]]
+	var wc := [["화장실(여)", -4.5, "toilet", "", 0.44, "N:칸|S:세면칸"], ["화장실 앞", -3.0, "corr"], ["화장실(남)", -4.5, "toilet", "", 0.55, "N:세면칸|S:소변"]]
 	match f:
 		1:
-			return [top, ["창고", -4.0, "room", "", 0.8], wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["운영위원회의실", 3.0, "room", "", 0.15], ["전산실", 2.0, "room", "", 0.85], ["발간실", 2.0, "room", "", 0.1], ["홀", 4.0, "open"]]
+			return [top, ["창고", -4.0, "room", "", 0.8], wc[0], wc[1], wc[2], ["포켓쉼터", 3.0, "open"], ["운영위원회의실", 3.0, "room", "", 0.15], ["전산실", 2.0, "room", "", 0.85], ["발간실", 2.0, "room", "", 0.1], ["홀", 4.0, "open"]]
 		2:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 1.5, "room", "", 0.2], ["체력단련실", 1.5, "room", "", 0.5]]
+			return [top, wc[0], wc[1], wc[2], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 1.5, "room", "", 0.2], ["체력단련실", 1.5, "room", "", 0.5]]
 		3:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
+			return [top, wc[0], wc[1], wc[2], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
 		4:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 2.0, "room", "N", 0.8]]
+			return [top, wc[0], wc[1], wc[2], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(남)", 2.0, "room", "N", 0.8]]
 		_:
-			return [top, wc[0], wc[1], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
+			return [top, wc[0], wc[1], wc[2], ["포켓쉼터", 3.0, "open"], ["Media Space", 3.0, "open"], ["탈의실(여)", 2.0, "room", "N", 0.8]]
 
 
 static func _ei(f: int) -> Array:
@@ -236,14 +240,15 @@ static func _ei(f: int) -> Array:
 
 static func _eo(f: int) -> Array:
 	var wc := [["화장실(남)", -4.0, "toilet", "", 0.2], ["화장실(여)", -4.0, "toilet", "", 0.2]]
+	var wc2 := [["화장실(남)", -5.8, "toilet", "", 0.34, "N:칸|S:세면칸"], ["화장실 앞", -5.4, "corr"], ["화장실(여)", -5.6, "toilet", "", 0.61, "N:세면칸|S:소변"]]
 	match f:
 		1:
 			return [["창고", 2.0, "room", "", 0.5], wc[0], wc[1], ["진로교육 전용공간", 3.0, "room", "", 0.85], ["포켓쉼터", 2.0, "open"], ["기술/가정 이론교실", 5.0, "class"], ["준비실", 2.0, "room", "", 0.2], ["창고", 2.0, "room", "", 0.2]]
 		2:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		3:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
 		4:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(여)", 1.0, "room", "", 0.1]]
 		_:
-			return [wc[0], wc[1], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
+			return [wc2[0], wc2[1], wc2[2], ["Media Space", 2.0, "open"], ["탈의실(남)", 1.0, "room", "", 0.1]]
