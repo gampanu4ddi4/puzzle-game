@@ -1271,71 +1271,94 @@ func _furnish_open(ctx: Dictionary, room: Dictionary) -> void:
 	_col(ctx, bench, bsize)
 
 
+## 화장실 설비. fix의 N/S/W/E는 실제 방향의 끝벽. 각 벽을 따라 줄을 놓는다.
+## 문 쪽(문이 가까운 쪽 끝)은 비워 드나드는 길을 남긴다 (피난안내도: 앞 공간 → 문 → 세면대 옆 통로 → 칸).
 func _furnish_toilet(ctx: Dictionary, room: Dictionary) -> void:
 	var mb: MeshBatch = ctx["mb"]
 	var y: float = ctx["y"]
 	var sr: Rect2 = room["srect"]
 	if sr.size.x < 2.5 or sr.size.y < 2.5:
 		return
-	var door := String(room["door"])
 	var fix := String(room.get("fix", ""))
 	if fix == "":
-		fix = "S:칸" if float(room.get("frac", 0.5)) < 0.5 else "N:칸"
-	# u: 문이 난 벽을 따라가는 축 (0 = 북/서 끝), v: 문 벽에서 안쪽으로
-	var along_z := door in ["E", "W"]
-	var len_u := sr.size.y if along_z else sr.size.x
-	var len_v := sr.size.x if along_z else sr.size.y
-	var p := func(u: float, v: float, yy: float) -> Vector3:
-		var vv := v if door in ["W", "N"] else len_v - v
-		return Vector3(sr.position.x + vv, yy, sr.position.y + u) if along_z else Vector3(sr.position.x + u, yy, sr.position.y + vv)
-	var sz := func(su: float, sv: float, sy: float) -> Vector3:
-		return Vector3(sv, sy, su) if along_z else Vector3(su, sy, sv)
-	var solid := func(u0: float, u1: float, v0: float, v1: float, h: float) -> void:
-		var a: Vector3 = p.call(u0, v0, y)
-		var b: Vector3 = p.call(u1, v1, y + h)
-		var lo := Vector3(minf(a.x, b.x), y, minf(a.z, b.z))
-		var hi := Vector3(maxf(a.x, b.x), y + h, maxf(a.z, b.z))
-		if _owns(ctx, room, (lo.x + hi.x) / 2.0, (lo.z + hi.z) / 2.0):
-			_col(ctx, (lo + hi) / 2.0, hi - lo)
+		fix = "N:칸"
+	var door := String(room["door"])
+	var frac := float(room.get("frac", 0.5))
 	for part in fix.split("|"):
-		var side_kind := part.split(":")
-		var wall_u := 0.0 if side_kind[0] in ["N", "W"] else len_u
-		var dir := 1.0 if wall_u == 0.0 else -1.0
-		var what := side_kind[1]
-		# 칸 줄이 놓일 v 범위
-		var v0 := 0.1
-		var v1 := len_v - 0.1
-		if what == "세면칸":
-			# 문 벽 쪽 절반은 세면대, 안쪽 절반은 칸
-			var sv1 := len_v * 0.42
-			var cu := wall_u + dir * 0.3
-			mb.add_box(mats["locker_top"], p.call(cu, (0.3 + sv1) / 2.0, y + 0.82), sz.call(0.55, sv1 - 0.3, 0.06))
-			mb.add_box(mats["stall"], p.call(cu, (0.3 + sv1) / 2.0, y + 0.4), sz.call(0.5, sv1 - 0.3, 0.8))
-			mb.add_box(mats["glass"], p.call(wall_u + dir * 0.03, (0.3 + sv1) / 2.0, y + 1.5), sz.call(0.02, sv1 - 0.3, 0.8))
-			solid.call(wall_u, wall_u + dir * 0.58, 0.3, sv1, 0.85)
-			v0 = len_v * 0.46
+		var sk := part.split(":")
+		var side := sk[0]
+		var what := sk[1]
+		var horiz := side in ["N", "S"]          # 벽이 x 방향으로 뻗음
+		var a0 := sr.position.x if horiz else sr.position.y
+		var a1 := sr.end.x if horiz else sr.end.y
+		var wall := 0.0
+		var dir := 1.0
+		match side:
+			"N":
+				wall = sr.position.y
+			"S":
+				wall = sr.end.y
+				dir = -1.0
+			"W":
+				wall = sr.position.x
+			_:
+				wall = sr.end.x
+				dir = -1.0
+		# 문이 가까운 끝: 문이 이 벽과 같은 축의 벽에 있으면 frac, 아니면 방 가운데 기준
+		var near_lo := frac < 0.5
+		var p := func(a: float, d: float, yy: float) -> Vector3:
+			return Vector3(a, yy, wall + dir * d) if horiz else Vector3(wall + dir * d, yy, a)
+		var sz := func(sa: float, sd: float, sy: float) -> Vector3:
+			return Vector3(sa, sy, sd) if horiz else Vector3(sd, sy, sa)
+		var solid := func(b0: float, b1: float, d0: float, d1: float, h: float) -> void:
+			var q0: Vector3 = p.call(b0, d0, y)
+			var q1: Vector3 = p.call(b1, d1, y + h)
+			var lo := Vector3(minf(q0.x, q1.x), y, minf(q0.z, q1.z))
+			var hi := Vector3(maxf(q0.x, q1.x), y + h, maxf(q0.z, q1.z))
+			_col(ctx, (lo + hi) / 2.0, hi - lo)
+		# 이 벽에 문이 있으면 문 쪽 1.3 m는 비운다
+		var lo_a := a0 + 0.1
+		var hi_a := a1 - 0.1
+		if door == side:
+			if near_lo:
+				lo_a = a0 + 1.4
+			else:
+				hi_a = a1 - 1.4
 		if what == "소변":
-			var n := int((len_v * 0.55) / 0.8)
+			var n := int(((a1 - a0) * 0.55) / 0.8)
 			for k in n:
-				var v := len_v * 0.4 + 0.4 + k * 0.8
-				mb.add_box(mats["locker_top"], p.call(wall_u + dir * 0.18, v, y + 0.75), sz.call(0.32, 0.4, 0.6))
-				mb.add_box(mats["stall"], p.call(wall_u + dir * 0.3, v + 0.4, y + 1.0), sz.call(0.55, 0.03, 0.9))
+				var a := a1 - 0.5 - k * 0.8 if near_lo else a0 + 0.5 + k * 0.8
+				mb.add_box(mats["locker_top"], p.call(a, 0.18, y + 0.75), sz.call(0.4, 0.32, 0.6))
+				mb.add_box(mats["stall"], p.call(a + 0.4, 0.3, y + 1.0), sz.call(0.03, 0.55, 0.9))
 			continue
+		if what == "세면칸":
+			# 문 쪽 앞부분에 세면대 (약 1/3), 나머지 칸
+			var sl := (hi_a - lo_a) * 0.36
+			var s0 := lo_a if near_lo else hi_a - sl
+			var s1 := s0 + sl
+			var cm := (s0 + s1) / 2.0
+			mb.add_box(mats["locker_top"], p.call(cm, 0.3, y + 0.82), sz.call(sl, 0.55, 0.06))
+			mb.add_box(mats["stall"], p.call(cm, 0.3, y + 0.4), sz.call(sl, 0.5, 0.8))
+			mb.add_box(mats["glass"], p.call(cm, 0.03, y + 1.5), sz.call(sl, 0.02, 0.8))
+			solid.call(s0, s1, 0.0, 0.58, 0.85)
+			if near_lo:
+				lo_a = s1 + 0.1
+			else:
+				hi_a = s0 - 0.1
 		# 대변기 칸 줄: 끝벽에서 깊이 1.4 m
 		var depth := 1.4
-		var front := wall_u + dir * depth
-		var n := maxi(1, int((v1 - v0) / 1.0))
-		var cw := (v1 - v0) / n
-		for k in n + 1:
-			mb.add_box(mats["stall"], p.call(wall_u + dir * depth / 2.0, v0 + k * cw, y + 0.95), sz.call(depth, 0.04, 1.8))
-		for k in n:
-			var c0 := v0 + k * cw
-			mb.add_box(mats["stall"], p.call(front, c0 + 0.08, y + 0.95), sz.call(0.04, 0.16, 1.8))
-			mb.add_box(mats["door_grey"], p.call(front + dir * 0.25, c0 + 0.19, y + 0.95), sz.call(0.6, 0.04, 1.7))
-			mb.add_box(mats["stall"], p.call(front, c0 + cw - 0.04, y + 0.95), sz.call(0.04, 0.08, 1.8))
-			mb.add_box(mats["locker_top"], p.call(wall_u + dir * 0.4, c0 + cw / 2.0, y + 0.2), sz.call(0.5, 0.38, 0.4))
-		mb.add_box(mats["stall"], p.call(front, (v0 + v1) / 2.0, y + 1.88), sz.call(0.04, v1 - v0, 0.06))
-		solid.call(wall_u, front, v0, v1, 1.8)
+		var n2 := maxi(1, int((hi_a - lo_a) / 1.0))
+		var cw := (hi_a - lo_a) / n2
+		for k in n2 + 1:
+			mb.add_box(mats["stall"], p.call(lo_a + k * cw, depth / 2.0, y + 0.95), sz.call(0.04, depth, 1.8))
+		for k in n2:
+			var c0 := lo_a + k * cw
+			mb.add_box(mats["stall"], p.call(c0 + 0.08, depth, y + 0.95), sz.call(0.16, 0.04, 1.8))
+			mb.add_box(mats["door_grey"], p.call(c0 + 0.19, depth + 0.25, y + 0.95), sz.call(0.04, 0.6, 1.7))
+			mb.add_box(mats["stall"], p.call(c0 + cw - 0.04, depth, y + 0.95), sz.call(0.08, 0.04, 1.8))
+			mb.add_box(mats["locker_top"], p.call(c0 + cw / 2.0, 0.4, y + 0.2), sz.call(0.38, 0.5, 0.4))
+		mb.add_box(mats["stall"], p.call((lo_a + hi_a) / 2.0, depth, y + 1.88), sz.call(hi_a - lo_a, 0.04, 0.06))
+		solid.call(lo_a, hi_a, 0.0, depth, 1.8)
 
 
 func _railing_terrace(ctx: Dictionary, ri: int) -> void:
