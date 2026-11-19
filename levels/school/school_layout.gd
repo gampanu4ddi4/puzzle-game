@@ -82,10 +82,12 @@ static func rooms(floor: int) -> Array:
 		# 동쪽 화장실: 앞 공간에서 화장실마다 작은 들머리(문 앞 칸)로 들어가 문을 연다. 들머리와 칸 줄 사이, 앞 공간과 화장실 사이는 벽.
 		# 앞 공간 가운데에 음수대 칸, 그 동쪽으로 앞 공간을 둘로 나누는 벽
 		# 치수는 피난안내도 (동쪽 바깥 줄 폭 7.3 m 기준): 여 14.3..19.8, 앞 공간 ..24.9, 남 ..29.1, 세척실 줄 ..30.4
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 18.05, 1.9, 1.75), "corr", ""))
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 24.9, 1.9, 1.75), "corr", ""))
-		out.append(_r("음수대", Rect2(X_EO.x, 21.3, 3.8, 1.9), "closed", ""))
-		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.8, 22.15, X_EO.y - X_EO.x - 3.8, 0.5), "closed", ""))
+		# 들머리는 복도 쪽이 벽(0.5 m)으로 막혀 앞 공간에서만 들어간다
+		for nz in [18.0, 25.0]:
+			out.append(_r("벽", Rect2(X_EO.x, nz, 0.5, 2.0), "closed", ""))
+			out.append(_r("화장실 앞", Rect2(X_EO.x + 0.5, nz, 1.9, 2.0), "corr", ""))
+		out.append(_r("음수대", Rect2(X_EO.x, 21.5, 3.5, 1.5), "closed", ""))
+		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.5, 22.0, X_EO.y - X_EO.x - 3.5, 0.5), "closed", ""))
 		out.append(_r("PD", Rect2(X_EO.x + 2.35, 29.1, X_EO.y - X_EO.x - 2.35, 1.3), "closed", ""))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
@@ -236,13 +238,13 @@ static func _ei(f: int) -> Array:
 		1:
 			return [["보건교육실", 5.0, "room", "", 0.1], ["위클래스실", 6.0, "room", "", 0.85], ["준비실", 3.0, "room", "", 0.85], ["미술실", 10.0, "class"], ["출입구", 3.0, "open"]]
 		2:
-			return [["%s", -7.4, "room", "", 0.85], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room", "", 0.3]]
+			return [["제1교무실", -7.4, "room", "", 0.85], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room", "", 0.3]]
 		3:
-			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
+			return [["제2교무실", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		4:
-			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
+			return [["교사연구실", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		_:
-			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
+			return [["교사연구실", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
 
 
 static func _eo(f: int) -> Array:
