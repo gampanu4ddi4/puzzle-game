@@ -82,12 +82,14 @@ static func rooms(floor: int) -> Array:
 		# 동쪽 화장실: 앞 공간에서 화장실마다 작은 들머리(문 앞 칸)로 들어가 문을 연다. 들머리와 칸 줄 사이, 앞 공간과 화장실 사이는 벽.
 		# 앞 공간 가운데에 음수대 칸, 그 동쪽으로 앞 공간을 둘로 나누는 벽
 		# 치수는 피난안내도 (동쪽 바깥 줄 폭 7.3 m 기준): 여 14.3..19.8, 앞 공간 ..24.9, 남 ..29.1, 세척실 줄 ..30.4
-		# 들머리는 복도 쪽이 벽(0.5 m)으로 막혀 앞 공간에서만 들어간다
+		# 앞 공간 z 20..25를 가운데(22.5) 기준 대칭으로: 서쪽은 음수대 칸(22..23) 양옆 통로 각 2 m,
+		# 동쪽은 얇은 칸막이벽으로 북·남 둘 (각 2.5 m). 들머리(18..20, 25..27)는 복도 쪽이 얇은 벽, 앞 공간 쪽만 트임
+		out.append(_r("화장실 앞", Rect2(X_EO.x, 20.0, 3.5, 5.0), "corr", ""))
+		out.append(_r("화장실 앞 북", Rect2(X_EO.x + 3.5, 20.0, X_EO.y - X_EO.x - 3.5, 2.5), "fs", ""))
+		out.append(_r("화장실 앞 남", Rect2(X_EO.x + 3.5, 22.5, X_EO.y - X_EO.x - 3.5, 2.5), "fs", ""))
+		out.append(_r("음수대", Rect2(X_EO.x, 22.0, 3.5, 1.0), "closed", ""))
 		for nz in [18.0, 25.0]:
-			out.append(_r("벽", Rect2(X_EO.x, nz, 0.5, 2.0), "closed", ""))
-			out.append(_r("화장실 앞", Rect2(X_EO.x + 0.5, nz, 1.9, 2.0), "corr", ""))
-		out.append(_r("음수대", Rect2(X_EO.x, 21.5, 3.5, 1.5), "closed", ""))
-		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.5, 22.0, X_EO.y - X_EO.x - 3.5, 0.5), "closed", ""))
+			out.append(_r("들머리", Rect2(X_EO.x, nz, 1.9, 2.0), "nook", ""))
 		out.append(_r("PD", Rect2(X_EO.x + 2.35, 29.1, X_EO.y - X_EO.x - 2.35, 1.3), "closed", ""))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:

@@ -49,7 +49,7 @@ func build() -> void:
 	var sealed: Array = []
 	for f in SchoolLayout.FLOORS:
 		for room in floors_rooms[f]:
-			if String(room["kind"]) in ["corr", "open", "closed", "void", "court", "eps", "out", "terrace", "path"] or String(room["name"]).begins_with("("):
+			if String(room["kind"]) in ["corr", "open", "closed", "void", "court", "eps", "out", "terrace", "path", "fs", "nook"] or String(room["name"]).begins_with("("):
 				continue
 			if not door_points.has("%d:%s" % [f + 1, room["name"]]):
 				sealed.append("%d층 %s" % [f + 1, room["name"]])
@@ -356,8 +356,11 @@ func _needs_wall(rooms: Array, a: int, b: int) -> bool:
 	if oa and ob:
 		return false
 	if not oa and not ob:
-		var soft := ["corr", "open"]
-		if ka in soft and kb in soft:
+		var soft := ["corr", "open", "fs"]
+		if ka in soft and kb in soft and not (ka == "fs" and kb == "fs"):
+			return false
+		# 들머리: 화장실 앞 공간 쪽만 트이고 복도 쪽은 벽
+		if (ka == "nook" and kb == "corr" and String(rooms[b]["name"]) == "화장실 앞") or (kb == "nook" and ka == "corr" and String(rooms[a]["name"]) == "화장실 앞"):
 			return false
 	return true
 
@@ -368,7 +371,7 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 	for ri in rooms.size():
 		var room: Dictionary = rooms[ri]
 		var kind := String(room["kind"])
-		if kind in ["corr", "open", "closed", "void", "court", "eps"]:
+		if kind in ["corr", "open", "closed", "void", "court", "eps", "nook", "fs"]:
 			continue
 		var sr: Rect2 = room["srect"]
 		var best := -1
@@ -387,7 +390,7 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				continue
 			# 복도 쪽 문이 먼저, 없으면 큰 방(식당·강당·주차장)이나 트인 공간 쪽
 			var ok_kind := _kind(rooms, other)
-			var rank := 2 if ok_kind == "corr" else (1 if ok_kind in ["hall", "open", "path"] and kind != "hall" else 0)
+			var rank := 2 if ok_kind in ["corr", "nook", "fs"] else (1 if ok_kind in ["hall", "open", "path"] and kind != "hall" else 0)
 			if rank == 0 and kind == "room" and ok_kind == "class":
 				rank = 1   # 복도에 닿지 않는 준비실 등: 옆 교실(실험실)로 통하는 문
 			if rank > 0 and float(room.get("frac", -1.0)) >= 0.0 and _side_of(sr, s) == room["door"]:
@@ -930,7 +933,7 @@ func _build_posts(ctx: Dictionary, segs: Array, doors := {}) -> void:
 
 func _floor_mat(kind: String, name: String) -> String:
 	match kind:
-		"corr":
+		"corr", "fs", "nook":
 			return "floor_corr"
 		"toilet":
 			return "floor_toilet"
