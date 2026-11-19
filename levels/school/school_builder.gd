@@ -194,6 +194,15 @@ func _make_materials() -> void:
 
 # ================================================================ 칸 격자
 
+## 이 위치의 칸이 정말 이 방의 칸인가 (계단 등 다른 방이 덮어쓴 자리는 아니다)
+func _owns(ctx: Dictionary, room: Dictionary, x: float, z: float) -> bool:
+	var idx := _cell_index(x, z)
+	if idx < 0:
+		return false
+	var ri: int = (ctx["grid"] as PackedInt32Array)[idx]
+	return ri >= 0 and (ctx["rooms"] as Array)[ri] == room
+
+
 func _snap(v: float) -> float:
 	return round(v / C) * C
 
@@ -444,6 +453,8 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 				list.append({"at": at, "w": 0.95, "h": 2.1, "kind": kind})
 		for k in range(n0, list.size()):
 			list[k]["side"] = side
+		if not (kind in ["stair", "ev", "terrace"]):
+			list[n0]["sign_name"] = String(room["name"])
 		doors[best] = list
 		var d: Dictionary = list[n0]
 		door_points["%d:%s" % [f + 1, room["name"]]] = _seg_point(s, d["at"], f * SchoolLayout.FLOOR_H)
@@ -684,6 +695,8 @@ func _build_leaf(ctx: Dictionary, s: Dictionary, d: Dictionary, thick: float) ->
 	var a0 := at - w / 2.0
 	var a1 := at + w / 2.0
 	var face := side * (thick / 2.0 + 0.03)
+	if String(d.get("sign_name", "")) != "":
+		_flag_sign(ctx, s, at, w, -side, String(d["sign_name"]), thick)
 	match kind:
 		"class", "hall":
 			# 미닫이: 선분 안쪽으로 70 % 밀어 둔다
@@ -721,6 +734,48 @@ func _build_leaf(ctx: Dictionary, s: Dictionary, d: Dictionary, thick: float) ->
 				_col(ctx, Vector3(hinge, y + h / 2.0, float(s["line"]) + perp), Vector3(0.05, h, w - 0.04))
 			else:
 				_col(ctx, Vector3(float(s["line"]) + perp, y + h / 2.0, hinge), Vector3(w - 0.04, h, 0.05))
+
+
+## 문 옆 벽에서 복도 쪽(out = 선에 수직인 방향 부호)으로 튀어나온 양면 이름표
+func _flag_sign(ctx: Dictionary, s: Dictionary, at: float, w: float, out: float, text: String, thick: float) -> void:
+	var root: Node3D = ctx["root"]
+	var y: float = ctx["y"]
+	var line: float = s["line"]
+	var along := Vector3(1, 0, 0) if s["axis"] == "x" else Vector3(0, 0, 1)
+	var n := Vector3(0, 0, out) if s["axis"] == "x" else Vector3(out, 0, 0)
+	# 문틀 옆 0.3 m (벽이 긴 쪽으로)
+	var dir := 1.0 if (float(s["a1"]) - (at + w / 2.0)) > ((at - w / 2.0) - float(s["a0"])) else -1.0
+	var a := at + dir * (w / 2.0 + 0.32)
+	var pw := maxf(0.45, text.length() * (0.13 if text.length() <= 5 else 0.09) + 0.1)
+	var on_wall := Vector3(a, 0, line) if s["axis"] == "x" else Vector3(line, 0, a)
+	var base := on_wall + n * (thick / 2.0 + pw / 2.0) + Vector3(0, y + 2.6, 0)
+	var plate := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = (along * 0.025 + n.abs() * pw) + Vector3(0, 0.2, 0)
+	plate.mesh = bm
+	plate.material_override = mats["locker_top"]
+	plate.position = base
+	root.add_child(plate)
+	var bracket := MeshInstance3D.new()
+	var bb := BoxMesh.new()
+	bb.size = (along * 0.03 + n.abs() * 0.06) + Vector3(0, 0.26, 0)
+	bracket.mesh = bb
+	bracket.material_override = mats["steel"]
+	bracket.position = on_wall + n * (thick / 2.0 + 0.03) + Vector3(0, y + 2.6, 0)
+	root.add_child(bracket)
+	for sgn in [1.0, -1.0]:
+		var l := Label3D.new()
+		l.text = text
+		l.font = _font
+		l.font_size = 64
+		l.pixel_size = 0.0024 if text.length() <= 5 else 0.0017
+		l.modulate = Color(0.15, 0.16, 0.18)
+		l.outline_size = 0
+		l.double_sided = false
+		var face_dir: Vector3 = along * sgn
+		l.position = base + face_dir * 0.016
+		l.rotation.y = atan2(face_dir.x, face_dir.z)
+		root.add_child(l)
 
 
 ## 선분의 바깥(실외) 쪽 부호: x 방향 선분이면 +z가 바깥일 때 +1
@@ -882,8 +937,9 @@ func _build_slabs(ctx: Dictionary) -> void:
 		for k in n:
 			var a := (sr.position.x if along_x else sr.position.y) + 1.5 + k * 3.0
 			if along_x:
-				mb.add_box(mats["band"], Vector3(a, y + 0.002, sr.get_center().y), Vector3(0.6, 0.004, sr.size.y * 0.7))
-			else:
+				if _owns(ctx, room, a - 0.3, sr.get_center().y) and _owns(ctx, room, a + 0.3, sr.get_center().y):
+					mb.add_box(mats["band"], Vector3(a, y + 0.002, sr.get_center().y), Vector3(0.6, 0.004, sr.size.y * 0.7))
+			elif _owns(ctx, room, sr.get_center().x, a - 0.3) and _owns(ctx, room, sr.get_center().x, a + 0.3):
 				mb.add_box(mats["band"], Vector3(sr.get_center().x, y + 0.002, a), Vector3(sr.size.x * 0.7, 0.004, 0.6))
 
 
@@ -1034,26 +1090,21 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 	# 가까운 끝 층계참 (이 층 바닥)
 	box.call(0.0, LANDING, 0.0, width, y - 0.25, y, mats["stair"], true)
 	if f >= SchoolLayout.FLOORS - 1:
-		# 맨 위층: 아래층 첫 줄 위가 뚫려 있다. 층계참 끝과 가운데 줄에 난간
+		# 맨 위층: 위로 가는 계단이 없으니 첫 줄 쪽 반(v 0..가운데)은 바닥판으로 덮는다.
+		# 남는 구멍(아래층 둘째 줄 위)의 가장자리, 즉 가운데 선을 따라 난간을 바닥판 위에 세운다.
 		var hv := (width - 0.2) / 2.0
-		var far_top := LANDING + STEP_N * minf((length - 2.0 * LANDING) / STEP_N, 0.3)
-		for seg in [[LANDING, LANDING, 0.0, hv + 0.1], [LANDING, far_top, hv + 0.1, hv + 0.1]]:
-			var u0: float = seg[0]
-			var u1: float = seg[1]
-			var v0: float = seg[2]
-			var v1: float = seg[3]
-			var n := int(maxf(absf(u1 - u0), absf(v1 - v0)) / 0.15)
-			for k in n + 1:
-				var t := float(k) / maxf(1.0, n)
-				var uu := lerpf(u0, u1, t)
-				var vv := lerpf(v0, v1, t)
-				box.call(uu - 0.012, uu + 0.012, vv - 0.012, vv + 0.012, y, y + 1.1, mats["rail"], false)
-			box.call(u0 - 0.03, u1 + 0.03, v0 - 0.03, v1 + 0.03, y + 1.08, y + 1.14, mats["handrail"], false)
-			var pa: Vector3 = to_w.call(u0 - 0.03, v0 - 0.03, y)
-			var pb: Vector3 = to_w.call(u1 + 0.03, v1 + 0.03, y + 1.14)
-			var lo := Vector3(minf(pa.x, pb.x), pa.y, minf(pa.z, pb.z))
-			var hi := Vector3(maxf(pa.x, pb.x), pb.y, maxf(pa.z, pb.z))
-			_col(ctx, (lo + hi) / 2.0, hi - lo)
+		var vm := hv + 0.1
+		box.call(LANDING, length, 0.0, vm + 0.1, y - 0.25, y, mats["stair"], true)
+		var n := int((length - LANDING) / 0.12)
+		for k in n + 1:
+			var uu := lerpf(LANDING, length - 0.05, float(k) / n)
+			box.call(uu - 0.012, uu + 0.012, vm - 0.012, vm + 0.012, y, y + 1.1, mats["rail"], false)
+		box.call(LANDING - 0.03, length, vm - 0.03, vm + 0.03, y + 1.08, y + 1.14, mats["handrail"], false)
+		var pa: Vector3 = to_w.call(LANDING, vm - 0.04, y)
+		var pb: Vector3 = to_w.call(length, vm + 0.04, y + 1.14)
+		var lo := Vector3(minf(pa.x, pb.x), pa.y, minf(pa.z, pb.z))
+		var hi := Vector3(maxf(pa.x, pb.x), pb.y, maxf(pa.z, pb.z))
+		_col(ctx, (lo + hi) / 2.0, hi - lo)
 		return
 	# 먼 끝 중간 참
 	box.call(far, length, 0.0, width, y + 1.8 - 0.25, y + 1.8, mats["stair"], true)
@@ -1221,7 +1272,8 @@ func _build_lights(ctx: Dictionary, room: Dictionary) -> void:
 		for k in n:
 			var a := (k + 0.5) * length / n
 			var pos := Vector3(sr.position.x + a, base_y + 2.7, sr.get_center().y) if along_x else Vector3(sr.get_center().x, base_y + 2.7, sr.position.y + a)
-			lights.add_child(_omni(pos, 5.5, 0.8))
+			if _owns(ctx, room, pos.x, pos.z):
+				lights.add_child(_omni(pos, 5.5, 0.8))
 	else:
 		var big := maxf(sr.size.x, sr.size.y)
 		if big > 14.0:
@@ -1241,7 +1293,10 @@ func _build_lights(ctx: Dictionary, room: Dictionary) -> void:
 		for j in nz:
 			var x := sr.position.x + (i + 0.5) * sr.size.x / nx
 			var z := sr.position.y + (j + 0.5) * sr.size.y / nz
-			mb.add_box(mats["lamp"], Vector3(x, y, z), Vector3(0.3, 0.01, 1.2) if sr.size.x < sr.size.y else Vector3(1.2, 0.01, 0.3))
+			var half_len := 0.65
+			var ok := _owns(ctx, room, x, z) and (_owns(ctx, room, x, z - half_len) and _owns(ctx, room, x, z + half_len) if sr.size.x < sr.size.y else _owns(ctx, room, x - half_len, z) and _owns(ctx, room, x + half_len, z))
+			if ok:
+				mb.add_box(mats["lamp"], Vector3(x, y, z), Vector3(0.3, 0.01, 1.2) if sr.size.x < sr.size.y else Vector3(1.2, 0.01, 0.3))
 
 
 func _omni(pos: Vector3, rng: float, energy: float) -> OmniLight3D:
@@ -1263,8 +1318,8 @@ func _build_signs(ctx: Dictionary, doors: Dictionary) -> void:
 	var root: Node3D = ctx["root"]
 	for key in door_points:
 		var parts := (key as String).split(":")
-		if int(parts[0]) != f + 1 or parts[1].begins_with("exterior") or parts[1].begins_with("계단"):
-			continue
+		if true:
+			continue   # 이름표는 _build_leaf에서 실제 문 자리에 단다
 		var p: Vector3 = door_points[key]
 		var info := room_at(p + Vector3(0, 1.0, 0))
 		# 문 바깥(복도) 쪽으로 붙인다: 문 둘레 네 방향 중 복도인 쪽
