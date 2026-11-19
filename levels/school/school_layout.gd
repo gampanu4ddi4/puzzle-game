@@ -47,7 +47,7 @@ const GAP_1F := Vector2(25.6, 32.4)   # 1층 북쪽 줄 가운데 바깥 통로
 const STAIRS := [
 	{"name": "계단 A북", "rect": Rect2(11.9, 0.0, 3.5, 10.4), "axis": "z", "near": "S", "door": "S"},
 	{"name": "계단 A남", "rect": Rect2(0.0, 55.8, 7.7, 6.0), "axis": "x", "near": "E", "door": "E"},
-	{"name": "계단 B북", "rect": Rect2(52.1, 8.0, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 B북", "rect": Rect2(52.1, 10.4, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
 	{"name": "계단 B남", "rect": Rect2(52.1, 55.8, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
 ]
 
@@ -77,7 +77,7 @@ static func rooms(floor: int) -> Array:
 	out.append_array(_stack(Rect2(X_WI.x, Z_MID.x, X_WI.y - X_WI.x, Z_MID.y - Z_MID.x), "z", "W", _wi(floor)))
 	out.append_array(_stack(Rect2(X_EI.x, Z_MID.x, X_EI.y - X_EI.x, Z_MID.y - Z_MID.x), "z", "E", _ei(floor)))
 	# 동쪽 바깥 줄 EO (B북 계단 아래 ~ B남 계단 위)
-	out.append_array(_stack(Rect2(X_EO.x, Z_NC.y, X_EO.y - X_EO.x, 55.8 - Z_NC.y), "z", "W", _eo(floor)))
+	out.append_array(_stack(Rect2(X_EO.x, 16.4, X_EO.y - X_EO.x, 55.8 - 16.4), "z", "W", _eo(floor)))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
 		out.append(_r(s["name"], s["rect"], "stair", s["door"]))

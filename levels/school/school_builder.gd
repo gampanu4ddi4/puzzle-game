@@ -401,6 +401,22 @@ func _assign_doors(f: int, rooms: Array, segs: Array) -> Dictionary:
 		var c_perp := sr.get_center().y if s["axis"] == "x" else sr.get_center().x
 		var side := 1.0 if c_perp > float(s["line"]) else -1.0
 		var n0 := list.size()
+		if kind == "stair":
+			for sj in segs.size():
+				if sj == best:
+					continue
+				var t: Dictionary = segs[sj]
+				var o := -1
+				if t["A"] == ri:
+					o = t["B"]
+				elif t["B"] == ri:
+					o = t["A"]
+				if o >= 0 and _kind(rooms, o) in ["corr", "open"]:
+					var tl: Array = doors.get(sj, [])
+					var t0: float = t["a0"]
+					var t1: float = t["a1"]
+					tl.append({"at": (t0 + t1) / 2.0, "w": t1 - t0, "h": SchoolLayout.CEIL_H, "kind": "stair_open", "side": 1.0})
+					doors[sj] = tl
 		match kind:
 			"class", "hall":
 				if a1 - a0 >= 5.0:
@@ -1016,6 +1032,26 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 	# 가까운 끝 층계참 (이 층 바닥)
 	box.call(0.0, LANDING, 0.0, width, y - 0.25, y, mats["stair"], true)
 	if f >= SchoolLayout.FLOORS - 1:
+		# 맨 위층: 아래층 첫 줄 위가 뚫려 있다. 층계참 끝과 가운데 줄에 난간
+		var hv := (width - 0.2) / 2.0
+		var far_top := LANDING + STEP_N * minf((length - 2.0 * LANDING) / STEP_N, 0.3)
+		for seg in [[LANDING, LANDING, 0.0, hv + 0.1], [LANDING, far_top, hv + 0.1, hv + 0.1]]:
+			var u0: float = seg[0]
+			var u1: float = seg[1]
+			var v0: float = seg[2]
+			var v1: float = seg[3]
+			var n := int(maxf(absf(u1 - u0), absf(v1 - v0)) / 0.15)
+			for k in n + 1:
+				var t := float(k) / maxf(1.0, n)
+				var uu := lerpf(u0, u1, t)
+				var vv := lerpf(v0, v1, t)
+				box.call(uu - 0.012, uu + 0.012, vv - 0.012, vv + 0.012, y, y + 1.1, mats["rail"], false)
+			box.call(u0 - 0.03, u1 + 0.03, v0 - 0.03, v1 + 0.03, y + 1.08, y + 1.14, mats["handrail"], false)
+			var pa: Vector3 = to_w.call(u0 - 0.03, v0 - 0.03, y)
+			var pb: Vector3 = to_w.call(u1 + 0.03, v1 + 0.03, y + 1.14)
+			var lo := Vector3(minf(pa.x, pb.x), pa.y, minf(pa.z, pb.z))
+			var hi := Vector3(maxf(pa.x, pb.x), pb.y, maxf(pa.z, pb.z))
+			_col(ctx, (lo + hi) / 2.0, hi - lo)
 		return
 	# 먼 끝 중간 참
 	box.call(far, length, 0.0, width, y + 1.8 - 0.25, y + 1.8, mats["stair"], true)
@@ -1031,12 +1067,18 @@ func _build_stair(ctx: Dictionary, room: Dictionary) -> void:
 		box.call(u1 + run - 0.04, u1 + run, half + 0.2, width, top2 - 0.004, top2 + 0.004, mats["rail"], false)
 	# 두 줄 사이 난간: 철제 살 + 나무 손잡이 (충돌은 판 하나)
 	var v_mid := half + 0.1
-	for k in range(0, STEP_N + 1, 2):
-		var u := LANDING + k * run
-		var y1 := y + k * rise
+	# 아래 줄 쪽 난간 (살 + 손잡이, 계단 기울기를 따라 칸마다)
+	for k in STEP_N:
+		var u := LANDING + (k + 0.5) * run
+		var y1 := y + (k + 1) * rise
+		box.call(u - 0.012, u + 0.012, v_mid - 0.012, v_mid + 0.012, y1, y1 + 0.9, mats["rail"], false)
+		box.call(u - run / 2.0, u + run / 2.0, v_mid - 0.03, v_mid + 0.03, y1 + 0.88, y1 + 0.94, mats["handrail"], false)
+		# 위 줄 쪽 (같은 자리, 1.8 m 위 반대 기울기)
 		var y2 := y + 1.8 + (STEP_N - k) * rise
-		box.call(u - 0.02, u + 0.02, v_mid - 0.02, v_mid + 0.02, y1, y2 + 0.95, mats["rail"], false)
-	box.call(LANDING, far, v_mid - 0.08, v_mid + 0.08, y, y + 3.6 + 0.9, mats["rail"], false)
+		box.call(u - 0.012, u + 0.012, v_mid - 0.012, v_mid + 0.012, y2 - rise, y2 - rise + 0.9, mats["rail"], false)
+		box.call(u - run / 2.0, u + run / 2.0, v_mid - 0.03, v_mid + 0.03, y2 - rise + 0.88, y2 - rise + 0.94, mats["handrail"], false)
+	# 가운데 얇은 띠 (두 줄 사이 틈의 옆판)
+	box.call(LANDING, far, v_mid - 0.02, v_mid + 0.02, y + 1.5, y + 1.8, mats["rail"], false)
 	var a: Vector3 = to_w.call(LANDING, v_mid - 0.06, y)
 	var b: Vector3 = to_w.call(far, v_mid + 0.06, y + 3.6 + 0.9)
 	_col(ctx, (a + b) / 2.0, (b - a).abs())
@@ -1064,7 +1106,11 @@ func _furnish_class(ctx: Dictionary, room: Dictionary) -> void:
 	mb.add_box(mats["wood"], p.call(1.3, width / 2.0, y + 0.55), sz.call(0.6, 1.0, 1.1))
 	_col(ctx, p.call(1.3, width / 2.0, y + 0.55), sz.call(0.6, 1.0, 1.1))
 	# 연두색 허리벽 띠 (긴 벽 양쪽, 바닥에서 1.1 m) — 벽에 붙은 얇은 판
+	var door_side := String(room["door"])
+	var skip_v := 0.11 if door_side in ["W", "N"] else width - 0.11
 	for v in [0.11, width - 0.11]:
+		if absf(v - skip_v) < 0.01:
+			continue   # 복도 쪽 벽(문이 있는 벽)에는 허리벽 띠를 두지 않는다
 		mb.add_box(mats["wall_green"], p.call(length / 2.0, v, y + 0.45), sz.call(length - 0.3, 0.012, 0.8))
 	mb.add_box(mats["wall_green"], p.call(length - 0.11, width / 2.0, y + 0.45), sz.call(0.012, width - 0.3, 0.8))
 	# 책상·의자: 2인 짝, 가로 3짝 × 세로 6줄
@@ -1224,25 +1270,37 @@ func _build_signs(ctx: Dictionary, doors: Dictionary) -> void:
 			var ri: int = grids[f][idx]
 			if _kind(rooms, ri) != "corr":
 				continue
-			var l := Label3D.new()
-			l.text = parts[1]
-			l.font = _font
-			l.font_size = 64
-			l.pixel_size = 0.0035 if parts[1].length() <= 5 else 0.0022
-			l.modulate = Color(0.15, 0.16, 0.18)
-			l.outline_size = 0
-			l.position = p + dir.normalized() * 0.19 + Vector3(0, 2.45, 0)
-			l.rotation.y = atan2(dir.x, dir.z)
-			l.double_sided = false
-			root.add_child(l)
+			# 문 옆(문틀 바깥 0.25 m)에서 복도 쪽으로 튀어나온 판, 양면에 글자
+			var n: Vector3 = (dir as Vector3).normalized()
+			var along := Vector3(-n.z, 0, n.x)
+			var pw := maxf(0.45, parts[1].length() * (0.13 if parts[1].length() <= 5 else 0.09) + 0.1)
+			var base := p + along * 0.85 + Vector3(0, 2.55, 0) + n * (pw / 2.0 + 0.02)
 			var plate := MeshInstance3D.new()
 			var bm := BoxMesh.new()
-			var pw := maxf(0.5, parts[1].length() * (0.2 if parts[1].length() <= 5 else 0.14) + 0.12)
-			bm.size = Vector3(pw, 0.24, 0.02) if absf(dir.z) > 0.0 else Vector3(0.02, 0.24, pw)
+			bm.size = Vector3(pw, 0.2, 0.025) if absf(n.x) > 0.5 else Vector3(0.025, 0.2, pw)
 			plate.mesh = bm
 			plate.material_override = mats["locker_top"]
-			plate.position = p + dir.normalized() * 0.16 + Vector3(0, 2.45, 0)
+			plate.position = base
 			root.add_child(plate)
+			var arm := MeshInstance3D.new()
+			var am := BoxMesh.new()
+			am.size = Vector3(pw + 0.04, 0.02, 0.02) if absf(n.x) > 0.5 else Vector3(0.02, 0.02, pw + 0.04)
+			arm.mesh = am
+			arm.material_override = mats["steel"]
+			arm.position = base + Vector3(0, 0.11, 0)
+			root.add_child(arm)
+			for sgn in [1.0, -1.0]:
+				var l := Label3D.new()
+				l.text = parts[1]
+				l.font = _font
+				l.font_size = 64
+				l.pixel_size = 0.0024 if parts[1].length() <= 5 else 0.0017
+				l.modulate = Color(0.15, 0.16, 0.18)
+				l.outline_size = 0
+				l.double_sided = false
+				l.position = base + along * sgn * 0.016
+				l.rotation.y = atan2(along.x, along.z) + (0.0 if sgn > 0 else PI)
+				root.add_child(l)
 			break
 	# 층 번호: 계단 층계참 옆벽에 크게 칠한 숫자 (사진처럼)
 	for room in rooms:

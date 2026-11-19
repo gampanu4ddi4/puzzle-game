@@ -205,6 +205,8 @@ func _tour_list() -> Array:
 	out.append(["d3_toilet_doors", Vector3(8.6, y4b + 1.6, 33.0), Vector3(11.5, y4b + 1.0, 20.0)])
 	out.append(["d4_class_doors", Vector3(11.5, y4b + 1.6, 20.0), Vector3(7.7, y4b + 1.4, 34.0)])
 	out.append(["d5_room_inside", Vector3(4.0, y4b + 1.6, 53.0), Vector3(8.0, y4b + 1.0, 50.5)])
+	out.append(["d6_b_north_stair_5f", Vector3(50.0, 4 * SchoolLayout.FLOOR_H + 1.7, 12.2), Vector3(56.0, 4 * SchoolLayout.FLOOR_H + 0.2, 13.5)])
+	out.append(["d7_class_doors_5f", Vector3(30.0, 4 * SchoolLayout.FLOOR_H + 1.6, 13.4), Vector3(38.0, 4 * SchoolLayout.FLOOR_H + 1.6, 10.4)])
 	out.append(["4_west_end", Vector3(2.0, 3 * SchoolLayout.FLOOR_H + 1.6, 12.2), Vector3(-30.0, 3 * SchoolLayout.FLOOR_H - 2.0, 12.0)])
 	out.append(["1_parking_outside", Vector3(-41.0, 1.7, 34.0), Vector3(-41.0, 1.0, 10.0)])
 	return out
@@ -260,7 +262,7 @@ func _test_climb(out: String) -> void:
 	var ok := await _walk(down, 30.0)
 	var info := builder.room_at(player.global_position + Vector3(0, 0.5, 0))
 	print("down B북: %d층 %s  y=%.2f %s" % [info[0], info[1], player.global_position.y, "OK" if ok else "STUCK"])
-	await _walk([Vector3(door_b.x - 1.5, 0, door_b.z)])
+	await _walk([Vector3(door_b.x + 0.5, 0, door_b.z), Vector3(door_b.x - 1.5, 0, door_b.z)])
 	info = builder.room_at(player.global_position + Vector3(0, 0.5, 0))
 	print("out to: %d층 %s" % [info[0], info[1]])
 	print("fps=%d" % Engine.get_frames_per_second())
