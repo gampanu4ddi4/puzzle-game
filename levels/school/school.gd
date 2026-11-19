@@ -147,6 +147,8 @@ func _run_test(kind: String) -> void:
 			await _test_perf()
 		"lightjump":
 			await _test_lightjump(out)
+		"plan":
+			await _test_plan(out)
 	get_tree().quit()
 
 
@@ -252,6 +254,25 @@ func _test_perf() -> void:
 		_update_lights(s[1])
 		await _wait(4.0)
 		print("perf %s  fps=%d  draw_calls=%d" % [s[0], Engine.get_frames_per_second(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
+
+
+## 층마다 위에서 내려다본 평면 (반자 바로 아래에서 직교 투영) — 피난안내도와 비교용
+func _test_plan(out: String) -> void:
+	player.set_physics_process(false)
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 66.0
+	cam.near = 0.05
+	cam.far = 10.0
+	add_child(cam)
+	cam.make_current()
+	for f in [2, 4]:
+		var y: float = (f - 1) * SchoolLayout.FLOOR_H + 2.95
+		cam.global_position = Vector3(SchoolLayout.W / 2.0, y, SchoolLayout.D / 2.0)
+		cam.rotation = Vector3(-PI / 2, 0, 0)
+		_update_lights(Vector3(0, y - 1.0, 0))
+		await _wait(1.5)
+		await _save(out.path_join("plan_%dF.png" % f))
 
 
 ## 계단 중간 참에서 점프한 높이와 선 높이의 화면 밝기 비교 (층 조명 켜고 끄기로 밝기가 튀는지)

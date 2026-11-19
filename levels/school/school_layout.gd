@@ -23,32 +23,32 @@ extends RefCounted
 const FLOOR_H := 3.6           # 층 높이 (대장 높이 19.4 m = 3.6 × 5 + 옥상)
 const CEIL_H := 3.0            # 반자 높이
 const FLOORS := 5
-const CLASS_LEN := 8.1         # 교실 한 칸 (기둥 간격)
+const CLASS_LEN := 8.2         # 교실 한 칸 (기둥 간격)
 
-const X_WO := Vector2(0.0, 7.7)
-const X_WC := Vector2(7.7, 10.3)
-const X_WI := Vector2(10.3, 16.6)
-const X_V := Vector2(16.6, 41.8)
-const X_EI := Vector2(41.8, 48.6)
-const X_EC := Vector2(48.6, 52.1)
-const X_EO := Vector2(52.1, 59.7)
-const Z_NO := Vector2(0.0, 10.4)
-const Z_NC := Vector2(10.4, 14.0)
-const Z_MID := Vector2(14.0, 58.5)
-const Z_SC := Vector2(58.5, 61.8)
+const X_WO := Vector2(0.0, 8.0)
+const X_WC := Vector2(8.0, 11.0)
+const X_WI := Vector2(11.0, 16.6)
+const X_V := Vector2(16.6, 42.4)
+const X_EI := Vector2(42.4, 50.4)
+const X_EC := Vector2(50.4, 53.5)
+const X_EO := Vector2(53.5, 59.7)
+const Z_NO := Vector2(0.0, 9.7)
+const Z_NC := Vector2(9.7, 13.9)
+const Z_MID := Vector2(13.9, 57.6)
+const Z_SC := Vector2(57.6, 61.8)
 const W := 59.7
 const D := 61.8
 const ANNEX := Rect2(-57.9, 0.0, 32.4, 26.4)
 const ANNEX_EAST := -33.9        # 별관 동쪽 칸 (x -33.9..-25.5)
-const LINK := Rect2(-25.5, 10.4, 25.5, 3.6)
+const LINK := Rect2(-25.5, 9.7, 25.5, 4.2)
 const GAP_1F := Vector2(25.6, 32.4)   # 1층 북쪽 줄 가운데 바깥 통로
 
 # 계단: rect, 긴 축, 층계참(바닥 높이) 쪽 끝, 문 방향
 const STAIRS := [
-	{"name": "계단 A북", "rect": Rect2(11.9, 0.0, 3.5, 10.4), "axis": "z", "near": "S", "door": "S"},
-	{"name": "계단 A남", "rect": Rect2(0.0, 55.8, 7.7, 6.0), "axis": "x", "near": "E", "door": "E"},
-	{"name": "계단 B북", "rect": Rect2(52.1, 10.4, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
-	{"name": "계단 B남", "rect": Rect2(52.1, 55.8, 7.6, 6.0), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 A북", "rect": Rect2(11.9, 0.0, 3.5, 9.7), "axis": "z", "near": "S", "door": "S"},
+	{"name": "계단 A남", "rect": Rect2(0.0, 55.8, 8.0, 6.0), "axis": "x", "near": "E", "door": "E"},
+	{"name": "계단 B북", "rect": Rect2(53.5, 9.7, 6.2, 6.0), "axis": "x", "near": "W", "door": "W"},
+	{"name": "계단 B남", "rect": Rect2(53.5, 55.8, 6.2, 6.0), "axis": "x", "near": "W", "door": "W"},
 ]
 
 
@@ -77,15 +77,15 @@ static func rooms(floor: int) -> Array:
 	out.append_array(_stack(Rect2(X_WI.x, Z_MID.x, X_WI.y - X_WI.x, Z_MID.y - Z_MID.x), "z", "W", _wi(floor)))
 	out.append_array(_stack(Rect2(X_EI.x, Z_MID.x, X_EI.y - X_EI.x, Z_MID.y - Z_MID.x), "z", "E", _ei(floor)))
 	# 동쪽 바깥 줄 EO (B북 계단 아래 ~ B남 계단 위)
-	out.append_array(_stack(Rect2(X_EO.x, 16.4, X_EO.y - X_EO.x, 55.8 - 16.4), "z", "W", _eo(floor)))
+	out.append_array(_stack(Rect2(X_EO.x, 15.7, X_EO.y - X_EO.x, 55.8 - 15.7), "z", "W", _eo(floor)))
 	if floor >= 2:
 		# 동쪽 화장실: 앞 공간에서 화장실마다 작은 들머리(문 앞 칸)로 들어가 문을 연다. 들머리와 칸 줄 사이, 앞 공간과 화장실 사이는 벽.
 		# 앞 공간 가운데에 음수대 칸, 그 동쪽으로 앞 공간을 둘로 나누는 벽
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 20.4, 2.0, 1.9), "corr", ""))
-		out.append(_r("화장실 앞", Rect2(X_EO.x, 27.4, 2.0, 1.9), "corr", ""))
-		out.append(_r("음수대", Rect2(X_EO.x, 23.9, 4.0, 1.9), "closed", ""))
-		out.append(_r("칸막이벽", Rect2(56.1, 24.75, X_EO.y - 56.1, 0.5), "closed", ""))
-		out.append(_r("세척실", Rect2(X_EO.x, 31.6, 2.5, 1.6), "room", "W", 0.5))
+		out.append(_r("화장실 앞", Rect2(X_EO.x, 19.7, 2.0, 1.9), "corr", ""))
+		out.append(_r("화장실 앞", Rect2(X_EO.x, 26.7, 2.0, 1.9), "corr", ""))
+		out.append(_r("음수대", Rect2(X_EO.x, 23.2, 3.6, 1.9), "closed", ""))
+		out.append(_r("칸막이벽", Rect2(X_EO.x + 3.6, 24.05, X_EO.y - X_EO.x - 3.6, 0.5), "closed", ""))
+		out.append(_r("세척실", Rect2(X_EO.x, 30.9, 2.5, 1.6), "room", "W", 0.5))
 	# 계단 (방 줄 위에 덮는다)
 	for s in STAIRS:
 		out.append(_r(s["name"], s["rect"], "stair", s["door"]))
@@ -117,8 +117,8 @@ static func rooms(floor: int) -> Array:
 static func exterior_doors(floor: int) -> Array:
 	if floor == 1:
 		return [
-			["x=%f" % X_WI.y, 57.8, 2.4],          # 정문: A동 홀에서 중정 남쪽으로
-			["x=%f" % X_EI.x, 57.8, 2.0],          # B동 출입구
+			["x=%f" % X_WI.y, 56.3, 2.4],          # 정문: A동 홀에서 중정 남쪽으로
+			["x=%f" % X_EI.x, 56.3, 2.0],          # B동 출입구
 			["W", (Z_NC.x + Z_NC.y) / 2.0, 2.0],   # 북복도 서쪽 끝 (주차장 쪽)
 			["x=%f" % GAP_1F.x, 12.2, 2.0],        # 북쪽 바깥 통로 양쪽
 			["x=%f" % GAP_1F.y, 12.2, 2.0],
@@ -205,13 +205,13 @@ static func _wo(f: int) -> Array:
 		1:
 			return [["상담실", 4.0, "room", "", 0.15], ["고정실", 3.0, "room", "", 0.8], ["교장실", 6.0, "room", "", 0.15], ["탕비실", 2.0, "room", "", 0.5], ["문서고", 2.0, "room", "", 0.5], ["행정실", 7.0, "room", "", 0.85], ["방송실", 4.0, "room", "", 0.8], ["스튜디오", 4.0, "room", "", 0.8], ["하부 창고", 2.0, "room", "", 0.5]]
 		2:
-			return [["1학년실", 6.0, "room", "", 0.85], ["1-2", C, "class"], ["1-3", C, "class"], ["1-4", C, "class"], ["1-5", C, "class"], ["세미나실", 3.4, "room", "", 0.2]]
+			return [["1학년실", -7.4, "room", "", 0.85], ["1-2", C, "class"], ["1-3", C, "class"], ["1-4", C, "class"], ["1-5", C, "class"], ["세미나실", 1.0, "room", "", 0.2]]
 		3:
-			return [["교무실", 6.0, "room", "", 0.85], ["1-10", C, "class"], ["1-11", C, "class"], ["1-12", C, "class"], ["교실", C, "class"], ["휴게실(여)", 3.4, "room", "", 0.2]]
+			return [["교무실", -7.4, "room", "", 0.85], ["1-10", C, "class"], ["1-11", C, "class"], ["1-12", C, "class"], ["교실", C, "class"], ["휴게실(여)", 1.0, "room", "", 0.2]]
 		4:
-			return [["교사연구실", 6.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["휴게실(남)", 3.4, "room", "", 0.2]]
+			return [["교사연구실", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["휴게실(남)", 1.0, "room", "", 0.2]]
 		_:
-			return [["교사연구실", 6.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["세미나실", 3.4, "room", "", 0.2]]
+			return [["교사연구실", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["세미나실", 1.0, "room", "", 0.2]]
 
 
 static func _wi(f: int) -> Array:
@@ -235,13 +235,13 @@ static func _ei(f: int) -> Array:
 		1:
 			return [["보건교육실", 5.0, "room", "", 0.1], ["위클래스실", 6.0, "room", "", 0.85], ["준비실", 3.0, "room", "", 0.85], ["미술실", 10.0, "class"], ["출입구", 3.0, "open"]]
 		2:
-			return [["제1교무실", 1.0, "room", "", 0.85], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room", "", 0.3]]
+			return [["%s", -7.4, "room", "", 0.85], ["1-6", C, "class"], ["1-7", C, "class"], ["1-8", C, "class"], ["1-9", C, "class"], ["학생회의실", 1.0, "room", "", 0.3]]
 		3:
-			return [["제2교무실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
+			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		4:
-			return [["교사연구실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
+			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["동아리실", 1.0, "room", "S", 0.15]]
 		_:
-			return [["교사연구실", 1.0, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
+			return [["%s", -7.4, "room", "", 0.85], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", C, "class"], ["교실", 1.0, "class"]]
 
 
 static func _eo(f: int) -> Array:
